@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mail</title>
+<style>
+/* ===== リセット & 変数 ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#0078d4;
+  --blue-hover:#106ebe;
+  --blue-light:#deecf9;
+  --blue-bg:#eff6fc;
+  --sidebar-bg:#faf9f8;
+  --sidebar-w:200px;
+  --list-w:290px;
+  --border:#edebe9;
+  --text:#201f1e;
+  --text-sub:#605e5c;
+  --text-light:#a19f9d;
+  --hover:#f3f2f1;
+  --active:#edebe9;
+  --unread-dot:#0078d4;
+  --red:#d13438;
+  --green:#107c10;
+  --shadow:0 3.2px 7.2px rgba(0,0,0,.13),0 .6px 1.8px rgba(0,0,0,.1);
+  --radius:4px;
+  --hdr-h:40px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;color:var(--text);background:#fff}
+
+/* ===== アバター ===== */
+.avatar{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:600;color:#fff;flex-shrink:0;
+  user-select:none;
+}
+
+/* ===== レイアウト ===== */
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ===== トップバー ===== */
+#topbar{
+  height:var(--hdr-h);background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px 0 0;gap:0;
+  flex-shrink:0;z-index:20;
+}
+.tb-logo{
+  width:var(--sidebar-w);height:100%;
+  display:flex;align-items:center;padding:0 12px;gap:6px;
+  border-right:1px solid var(--border);flex-shrink:0;
+}
+.tb-logo-icon{font-size:1.1rem}
+.tb-logo-name{font-size:.9rem;font-weight:600;color:var(--blue)}
+.tb-search{
+  flex:1;max-width:500px;margin:0 10px;
+  display:flex;align-items:center;background:var(--hover);
+  border:1px solid transparent;border-radius:4px;padding:0 8px;gap:6px;
+  transition:border-color .15s,background .15s;
+}
+.tb-search:focus-within{background:#fff;border-color:var(--blue)}
+.tb-search svg{opacity:.5;flex-shrink:0}
+.tb-search input{
+  flex:1;border:none;background:transparent;font-size:.85rem;outline:none;
+  padding:5px 0;color:var(--text);
+}
+.tb-search input::placeholder{color:var(--text-light)}
+.tb-spacer{flex:1}
+.tb-right{display:flex;align-items:center;gap:4px}
+.tb-icon-btn{
+  width:30px;height:30px;border:none;background:transparent;
+  border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text-sub);transition:background .12s;
+}
+.tb-icon-btn:hover{background:var(--hover)}
+.tb-account-btn{
+  display:flex;align-items:center;gap:8px;
+  border:none;background:transparent;cursor:pointer;padding:4px 8px;
+  border-radius:var(--radius);transition:background .12s;margin-left:4px;
+}
+.tb-account-btn:hover{background:var(--hover)}
+.tb-account-email{font-size:.78rem;color:var(--text-sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== メインエリア ===== */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ===== サイドバー ===== */
+#sidebar{
+  width:var(--sidebar-w);background:var(--sidebar-bg);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;
+}
+.sb-new-btn{
+  display:flex;align-items:center;gap:6px;
+  margin:8px 10px 6px;padding:6px 12px;
+  background:transparent;border:1px solid var(--blue);
+  border-radius:var(--radius);color:var(--blue);font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:background .12s;
+}
+.sb-new-btn:hover{background:var(--blue-bg)}
+.sb-new-btn svg{flex-shrink:0}
+.sb-section-label{
+  padding:8px 14px 3px;font-size:.68rem;font-weight:600;
+  color:var(--text-light);letter-spacing:.05em;text-transform:uppercase;
+}
+.folder-item{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 10px 6px 14px;cursor:pointer;
+  border-radius:0;transition:background .1s;user-select:none;
+  border-left:3px solid transparent;
+}
+.folder-item:hover{background:var(--hover)}
+.folder-item.active{
+  background:var(--blue-light);border-left-color:var(--blue);color:var(--blue);
+}
+.folder-item.active .folder-name{font-weight:600}
+.fi-icon{width:20px;text-align:center;flex-shrink:0}
+.fi-icon svg{display:block;margin:auto}
+.folder-name{flex:1;font-size:.82rem;color:inherit}
+.folder-badge{
+  background:var(--blue);color:#fff;border-radius:10px;
+  padding:1px 6px;font-size:.7rem;font-weight:700;min-width:18px;text-align:center;
+}
+.folder-badge.zero{display:none}
+.sb-footer{
+  margin-top:auto;padding:8px 12px;border-top:1px solid var(--border);
+}
+.sb-sync-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:transparent;border:none;padding:8px 10px;border-radius:var(--radius);
+  font-size:.82rem;color:var(--text-sub);cursor:pointer;transition:background .12s;
+}
+.sb-sync-btn:hover{background:var(--hover)}
+.sb-add-link{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:var(--radius);
+  font-size:.82rem;color:var(--text-sub);cursor:pointer;
+  text-decoration:none;transition:background .12s;
+}
+.sb-add-link:hover{background:var(--hover)}
+
+/* ===== メール一覧ペイン ===== */
+#list-pane{
+  flex:1;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:#fff;
+}
+.lp-header{
+  padding:8px 12px 6px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+.lp-title{font-size:.95rem;font-weight:700;flex:1}
+.lp-count{font-size:.78rem;color:var(--text-light);margin-left:4px}
+.lp-sort-btn{
+  border:none;background:transparent;border-radius:var(--radius);
+  padding:4px 8px;font-size:.78rem;color:var(--text-sub);cursor:pointer;
+  transition:background .12s;display:flex;align-items:center;gap:4px;
+}
+.lp-sort-btn:hover{background:var(--hover)}
+#email-list{flex:1;overflow-y:auto}
+#email-list::-webkit-scrollbar{width:6px}
+#email-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* メール行 */
+.mail-row{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:7px 10px 7px 8px;border-bottom:1px solid var(--border);
+  cursor:pointer;position:relative;transition:background .1s;
+  border-left:3px solid transparent;
+}
+.mail-row:hover{background:var(--hover)}
+.mail-row.active{background:var(--blue-bg);border-left-color:var(--blue)}
+.mail-row.unread .mr-from{font-weight:700}
+.mail-row.unread .mr-subject{font-weight:600;color:var(--text)}
+.mail-row.unread{border-left-color:var(--unread-dot)}
+.mail-row.active.unread{border-left-color:var(--blue)}
+.mr-check{
+  width:18px;height:18px;border:1px solid var(--border);border-radius:3px;
+  flex-shrink:0;margin-top:2px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .12s,background .12s;
+}
+.mail-row:hover .mr-check,.mr-check.checked{border-color:var(--blue)}
+.mr-check.checked{background:var(--blue)}
+.mr-body{flex:1;min-width:0}
+.mr-top{display:flex;align-items:center;gap:6px}
+.mr-from{font-size:.82rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-sub)}
+.mr-time{font-size:.68rem;color:var(--text-light);white-space:nowrap;flex-shrink:0}
+.mr-subject{font-size:.8rem;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mr-preview{font-size:.74rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mr-icons{display:flex;align-items:center;gap:4px;margin-top:3px}
+.star-btn{
+  background:none;border:none;cursor:pointer;padding:2px;
+  color:var(--text-light);line-height:1;transition:color .12s;
+}
+.star-btn:hover,.star-btn.on{color:#f2c94c}
+.attach-icon{color:var(--text-light);font-size:.75rem}
+
+/* スケルトン */
+.skel-row{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px}
+.skel{background:linear-gradient(90deg,#f3f2f1 25%,#edebe9 50%,#f3f2f1 75%);background-size:200%;animation:skel-anim 1.4s infinite;border-radius:4px}
+@keyframes skel-anim{0%{background-position:200%}100%{background-position:-200%}}
+
+/* ===== 本文ペイン ===== */
+#body-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+
+/* 空状態 */
+#empty-state{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;color:var(--text-light);
+}
+#empty-state .es-icon{font-size:4rem;opacity:.4}
+#empty-state .es-text{font-size:1rem;font-weight:500}
+#empty-state .es-sub{font-size:.85rem}
+
+/* メール詳細 */
+#mail-detail{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* 詳細ツールバー */
+.dt-toolbar{
+  display:flex;align-items:center;gap:1px;flex-wrap:wrap;
+  padding:3px 8px;border-bottom:1px solid var(--border);flex-shrink:0;background:#fff;
+}
+.dt-btn{
+  display:flex;align-items:center;gap:3px;
+  border:none;background:transparent;border-radius:var(--radius);
+  padding:3px 6px;font-size:.72rem;color:var(--text-sub);cursor:pointer;
+  transition:background .1s;white-space:nowrap;
+}
+.dt-btn:hover{background:var(--hover)}
+.dt-btn.primary{color:var(--blue)}
+.dt-btn.primary:hover{background:var(--blue-bg)}
+.dt-btn.danger:hover{background:#fde7e9;color:var(--red)}
+.dt-sep{width:1px;height:16px;background:var(--border);margin:0 2px}
+
+/* 詳細ヘッダー */
+.dh-wrap{padding:8px 12px 6px;border-bottom:1px solid var(--border);flex-shrink:0}
+.dh-subject{font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:5px;line-height:1.3}
+.dh-meta{display:flex;align-items:flex-start;gap:8px}
+.dh-avatar{margin-top:2px}
+.dh-info{flex:1;min-width:0}
+.dh-from-name{font-size:.8rem;font-weight:600;color:var(--text)}
+.dh-from-addr{font-size:.72rem;color:var(--text-sub);margin-left:3px}
+.dh-to-line{font-size:.72rem;color:var(--text-sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dh-date{font-size:.68rem;color:var(--text-light);white-space:nowrap;margin-top:2px}
+
+/* 本文 */
+.db-wrap{flex:1;overflow:hidden;position:relative}
+/* ⚠️ XSS対策: HTML本文はsandbox付きiframeで表示 */
+#body-iframe{width:100%;height:100%;border:none}
+#body-text{padding:10px 14px;white-space:pre-wrap;font-size:.8rem;line-height:1.6;height:100%;overflow-y:auto;color:var(--text);font-family:inherit}
+
+/* 返信・転送エリア */
+.reply-wrap{
+  border-top:1px solid var(--border);padding:8px 12px;
+  background:#faf9f8;flex-shrink:0;display:none;
+}
+.rw-header{font-size:.75rem;font-weight:700;color:var(--text-sub);margin-bottom:4px;display:flex;align-items:center;gap:4px}
+.rw-to{font-size:.72rem;color:var(--text-sub);margin-bottom:5px;padding:3px 6px;background:#fff;border:1px solid var(--border);border-radius:var(--radius)}
+.rw-input{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:7px 10px;font-size:.8rem;resize:vertical;min-height:70px;outline:none;
+  background:#fff;font-family:inherit;transition:border-color .15s;
+}
+.rw-input:focus{border-color:var(--blue)}
+.rw-footer{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
+.rw-send{padding:5px 14px;background:var(--blue);color:#fff;border:none;border-radius:var(--radius);font-size:.78rem;font-weight:600;cursor:pointer;transition:background .12s}
+.rw-send:hover{background:var(--blue-hover)}
+.rw-send:disabled{opacity:.5;cursor:not-allowed}
+.rw-cancel{padding:5px 10px;background:transparent;border:1px solid var(--border);border-radius:var(--radius);font-size:.78rem;cursor:pointer;transition:background .12s}
+.rw-cancel:hover{background:var(--hover)}
+.rw-to-input{width:100%;border:1px solid var(--border);border-radius:var(--radius);padding:5px 8px;font-size:.78rem;outline:none;background:#fff;margin-bottom:5px}
+.rw-to-input:focus{border-color:var(--blue)}
+
+/* ===== 新規作成ペイン ===== */
+#compose-pane{
+  flex:1;display:none;flex-direction:column;overflow:hidden;background:#fff;
+}
+#compose-pane.open{display:flex}
+.cp-header{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 10px;border-bottom:1px solid var(--border);background:#fff;flex-shrink:0;
+}
+.cp-title{font-size:.85rem;font-weight:700;flex:1;color:var(--text)}
+.cp-send-btn{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 14px;background:var(--blue);color:#fff;border:none;
+  border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer;
+  transition:background .12s;
+}
+.cp-send-btn:hover{background:var(--blue-hover)}
+.cp-send-btn:disabled{opacity:.5;cursor:not-allowed}
+.cp-cancel-btn{
+  padding:5px 10px;background:transparent;border:1px solid var(--border);
+  border-radius:var(--radius);font-size:.82rem;cursor:pointer;transition:background .12s;
+}
+.cp-cancel-btn:hover{background:var(--hover)}
+.cp-field{
+  display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 12px;flex-shrink:0;
+}
+.cp-field label{font-size:.75rem;color:var(--text-sub);width:32px;flex-shrink:0;font-weight:600}
+.cp-field input{
+  flex:1;border:none;padding:8px 0;font-size:.83rem;outline:none;color:var(--text);background:transparent;
+}
+.cp-body-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:8px 12px}
+.cp-body{
+  flex:1;width:100%;border:none;outline:none;resize:none;font-size:.83rem;
+  line-height:1.65;color:var(--text);font-family:inherit;background:transparent;
+}
+
+/* ===== ラベルチップ ===== */
+.label-chip{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:1px 6px;border-radius:10px;font-size:.66rem;font-weight:600;color:#fff;
+  white-space:nowrap;
+}
+.label-chip-rm{
+  background:none;border:none;color:inherit;cursor:pointer;opacity:.7;
+  font-size:.7rem;line-height:1;padding:0;margin-left:1px;
+}
+.label-chip-rm:hover{opacity:1}
+
+/* ===== ラベル作成モーダル ===== */
+#label-modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;
+  display:none;align-items:center;justify-content:center;
+}
+#label-modal-overlay.open{display:flex}
+#label-modal{
+  background:#fff;border-radius:8px;box-shadow:var(--shadow);
+  width:300px;padding:20px;border:1px solid var(--border);
+  animation:modal-in .15s ease;
+}
+#label-modal h3{font-size:.9rem;font-weight:700;margin-bottom:14px}
+.lm-field{margin-bottom:10px}
+.lm-field label{display:block;font-size:.75rem;color:var(--text-sub);margin-bottom:4px;font-weight:600}
+.lm-field input[type=text]{width:100%;border:1px solid var(--border);border-radius:var(--radius);padding:6px 9px;font-size:.85rem;outline:none}
+.lm-field input[type=text]:focus{border-color:var(--blue)}
+.lm-colors{display:flex;gap:6px;flex-wrap:wrap}
+.lm-color{
+  width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;
+  transition:border-color .12s;
+}
+.lm-color.sel{border-color:#333}
+.lm-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.lm-btn{padding:5px 14px;border-radius:var(--radius);font-size:.82rem;cursor:pointer;border:1px solid var(--border);background:transparent}
+.lm-btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* compose レスポンシブ */
+@media(max-width:600px){
+  #compose-modal{width:95vw}
+}
+
+/* ===== コンテキストメニュー ===== */
+#ctx-menu{
+  position:fixed;background:#fff;border:1px solid var(--border);
+  border-radius:6px;box-shadow:var(--shadow);z-index:150;min-width:160px;
+  display:none;overflow:hidden;animation:ctx-in .1s ease;
+}
+@keyframes ctx-in{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.ctx-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 16px;cursor:pointer;font-size:.88rem;
+  transition:background .1s;
+}
+.ctx-item:hover{background:var(--hover)}
+.ctx-item.danger{color:var(--red)}
+.ctx-item.danger:hover{background:#fde7e9}
+.ctx-sep{height:1px;background:var(--border);margin:3px 0}
+
+/* ===== トースト ===== */
+#toast-wrap{
+  position:fixed;top:60px;right:16px;z-index:300;
+  display:flex;flex-direction:column;gap:8px;
+}
+.toast{
+  display:flex;align-items:center;gap:10px;
+  background:#fff;border:1px solid var(--border);border-radius:6px;
+  padding:12px 16px;box-shadow:var(--shadow);
+  font-size:.88rem;min-width:260px;max-width:340px;
+  animation:toast-in .2s ease;
+}
+@keyframes toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.toast-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.toast.success .toast-dot{background:var(--green)}
+.toast.error .toast-dot{background:var(--red)}
+.toast.info .toast-dot{background:var(--blue)}
+.toast-msg{flex:1;color:var(--text)}
+
+/* ===== スクロールバー全体 ===== */
+#sidebar::-webkit-scrollbar{width:4px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ===== トップバー ===== -->
+<div id="topbar">
+  <div class="tb-logo">
+    <div class="tb-logo-icon">✉️</div>
+    <div class="tb-logo-name">Mail</div>
+  </div>
+  <div class="tb-search">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="search-input" placeholder="メールを検索">
+  </div>
+  <div class="tb-spacer"></div>
+  <div class="tb-right">
+    <button class="tb-icon-btn" id="btn-sync-top" title="同期">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+    <button class="tb-account-btn" id="account-toggle-btn">
+      <div class="avatar" id="account-avatar" style="background:#0078d4;width:28px;height:28px;font-size:.7rem">U</div>
+      <div class="tb-account-email" id="account-email-label">アカウント</div>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ===== アカウントドロップダウン ===== -->
+<div id="account-dropdown" style="
+  display:none;position:fixed;top:52px;right:12px;
+  background:#fff;border:1px solid var(--border);border-radius:6px;
+  box-shadow:var(--shadow);z-index:200;min-width:220px;overflow:hidden;
+">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:.78rem;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:.05em">アカウント切替</div>
+  <div id="account-list-dropdown"></div>
+  <div style="border-top:1px solid var(--border)">
+    <a href="/mail/setup/" style="display:flex;align-items:center;gap:8px;padding:10px 16px;font-size:.85rem;color:var(--blue);text-decoration:none;transition:background .12s" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      アカウントを追加
+    </a>
+  </div>
+</div>
+
+<!-- ===== メインエリア ===== -->
+<div id="main">
+
+  <!-- ===== サイドバー ===== -->
+  <div id="sidebar">
+    <button class="sb-new-btn" id="btn-compose">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      新規メール
+    </button>
+    <div class="sb-section-label">フォルダ</div>
+    <div id="folder-list">
+      <div style="padding:12px 16px;font-size:.82rem;color:var(--text-light)">読み込み中…</div>
+    </div>
+    <div class="sb-section-label" style="margin-top:6px;display:flex;align-items:center;justify-content:space-between;padding-right:8px">
+      <span>ラベル</span>
+      <button id="btn-new-label" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:1rem;line-height:1;padding:0 2px" title="ラベルを追加">+</button>
+    </div>
+    <div id="label-list"></div>
+
+    <div class="sb-footer">
+      <button class="sb-sync-btn" id="btn-sync">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        今すぐ同期
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== 新規作成ペイン ===== -->
+  <div id="compose-pane">
+    <div class="cp-header">
+      <button class="cp-cancel-btn" id="compose-close">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        戻る
+      </button>
+      <div class="cp-title">新規メール</div>
+      <button class="cp-send-btn" id="btn-compose-send">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        送信
+      </button>
+    </div>
+    <div class="cp-field">
+      <label>To</label>
+      <input type="text" id="c-to" placeholder="宛先（カンマ区切りで複数可）">
+    </div>
+    <div class="cp-field">
+      <label>CC</label>
+      <input type="text" id="c-cc" placeholder="CC（省略可）">
+    </div>
+    <div class="cp-field">
+      <label>件名</label>
+      <input type="text" id="c-subject" placeholder="件名">
+    </div>
+    <div class="cp-body-wrap">
+      <textarea class="cp-body" id="c-body" placeholder="本文を入力…"></textarea>
+    </div>
+  </div>
+
+  <!-- ===== メール一覧ペイン ===== -->
+  <div id="list-pane">
+    <div class="lp-header">
+      <div class="lp-title" id="folder-title">受信トレイ</div>
+      <span class="lp-count" id="mail-count"></span>
+      <button class="lp-sort-btn">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+        日付
+      </button>
+    </div>
+    <div id="email-list">
+      <div style="padding:24px;text-align:center;color:var(--text-light);font-size:.9rem">フォルダを選択してください</div>
+    </div>
+  </div>
+
+  <!-- ===== 本文ペイン ===== -->
+  <div id="body-pane" style="display:none">
+    <div id="empty-state">
+      <div class="es-icon">📭</div>
+      <div class="es-text">メールを選択</div>
+      <div class="es-sub">メールを選択すると内容がここに表示されます</div>
+    </div>
+
+    <div id="mail-detail" style="display:none">
+      <!-- ツールバー -->
+      <div class="dt-toolbar">
+        <button class="dt-btn" id="btn-back">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          一覧に戻る
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn primary" id="btn-reply">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+          返信
+        </button>
+        <button class="dt-btn primary" id="btn-forward">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+          転送
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn" id="btn-archive" title="アーカイブ">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+          アーカイブ
+        </button>
+        <button class="dt-btn danger" id="btn-delete">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          削除
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn" id="btn-mark-unread" title="未読にする">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.23h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.06-1.06a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.07z"/></svg>
+          未読
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn" id="btn-label-menu" title="ラベル">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          ラベル
+        </button>
+      </div>
+      <!-- ラベルドロップダウン -->
+      <div id="label-dropdown" style="display:none;padding:6px 10px;border-bottom:1px solid var(--border);background:#fafafa;flex-wrap:wrap;gap:4px;flex-shrink:0"></div>
+
+      <!-- 件名・差出人ヘッダー -->
+      <div class="dh-wrap">
+        <div class="dh-subject" id="detail-subject"></div>
+        <div class="dh-meta">
+          <div class="dh-avatar"><div class="avatar" id="detail-avatar" style="background:#0078d4;width:22px;height:22px;font-size:.62rem"></div></div>
+          <div class="dh-info">
+            <div>
+              <span class="dh-from-name" id="detail-from-name"></span>
+              <span class="dh-from-addr" id="detail-from-addr"></span>
+            </div>
+            <div class="dh-to-line" id="detail-to-line"></div>
+          </div>
+          <div class="dh-date" id="detail-date"></div>
+        </div>
+      </div>
+
+      <!-- 本文 -->
+      <div class="db-wrap">
+        <iframe id="body-iframe" sandbox="allow-same-origin allow-popups" style="display:none"></iframe>
+        <div id="body-text"></div>
+      </div>
+
+      <!-- 返信フォーム -->
+      <div class="reply-wrap" id="reply-wrap">
+        <div class="rw-header">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+          返信
+        </div>
+        <div class="rw-to" id="reply-to-addr"></div>
+        <textarea class="rw-input" id="reply-body" placeholder="返信内容を入力…"></textarea>
+        <div class="rw-footer">
+          <button class="rw-cancel" id="btn-reply-cancel">キャンセル</button>
+          <button class="rw-send" id="btn-reply-send">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            送信
+          </button>
+        </div>
+      </div>
+
+      <!-- 転送フォーム -->
+      <div class="reply-wrap" id="forward-wrap">
+        <div class="rw-header">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+          転送
+        </div>
+        <input class="rw-to-input" id="forward-to" placeholder="転送先（カンマ区切りで複数指定可）">
+        <textarea class="rw-input" id="forward-body" placeholder="コメントを入力（省略可）" style="min-height:70px"></textarea>
+        <div class="rw-footer">
+          <button class="rw-cancel" id="btn-forward-cancel">キャンセル</button>
+          <button class="rw-send" id="btn-forward-send">転送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- compose-pane は #main 内に移動済み -->
+
+<!-- ===== ラベル作成モーダル ===== -->
+<div id="label-modal-overlay">
+  <div id="label-modal">
+    <h3>新しいラベル</h3>
+    <div class="lm-field">
+      <label>ラベル名</label>
+      <input type="text" id="lm-name" placeholder="例：重要">
+    </div>
+    <div class="lm-field">
+      <label>カラー</label>
+      <div class="lm-colors" id="lm-colors"></div>
+    </div>
+    <div class="lm-footer">
+      <button class="lm-btn" id="lm-cancel">キャンセル</button>
+      <button class="lm-btn primary" id="lm-save">作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== コンテキストメニュー ===== -->
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-reply">
+    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+    返信
+  </div>
+  <div class="ctx-item" id="ctx-forward">
+    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+    転送
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-move">
+    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    フォルダへ移動
+  </div>
+  <div class="ctx-item" id="ctx-read-toggle">
+    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    未読にする
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctx-delete">
+    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+    削除
+  </div>
+</div>
+
+<!-- ===== トースト ===== -->
+<div id="toast-wrap"></div>
+
+<script>
+// =============================================
+// ユーティリティ
+// =============================================
+const $ = id => document.getElementById(id);
+const getCsrf = () => { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; };
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), ...(opts.headers||{}) },
+    ...opts,
+  });
+  return r.json();
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), now = new Date();
+  if (d.toDateString() === now.toDateString())
+    return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  if (now - d < 7 * 86400000)
+    return d.toLocaleDateString('ja-JP', { weekday: 'short' });
+  if (d.getFullYear() === now.getFullYear())
+    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function fmtDateFull(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('ja-JP', { year:'numeric',month:'short',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit' });
+}
+
+// アバター色（差出人名から決定）
+const AVATAR_COLORS = ['#0078d4','#107c10','#8764b8','#c43e1c','#008272','#ca5010','#e3008c','#038387'];
+function avatarColor(name) {
+  let h = 0;
+  for (let i = 0; i < (name||'').length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function avatarInitial(addr) {
+  const name = addr?.replace(/<.*>/, '').trim();
+  return (name?.charAt(0) || addr?.charAt(0) || '?').toUpperCase();
+}
+
+function toast(msg, type = 'info') {
+  const w = $('toast-wrap');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<div class="toast-dot"></div><div class="toast-msg">${esc(msg)}</div>`;
+  w.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(), 300); }, 3000);
+}
+
+// =============================================
+// 状態
+// =============================================
+const S = {
+  accounts: [], curAccount: null,
+  folders: [], curFolder: null,
+  labels: [], curLabel: null,
+  emails: [], curEmailId: null, curEmail: null,
+  page: 1, total: 0, loading: false,
+  ctxId: null,
+};
+
+// =============================================
+// アカウント
+// =============================================
+async function loadAccounts() {
+  const d = await api('/mail/api/accounts/');
+  if (!d.ok) return;
+  S.accounts = d.accounts;
+  renderAccountDropdown();
+  if (d.accounts.length) {
+    setAccount(d.accounts[0]);
+  }
+}
+
+function setAccount(acc) {
+  S.curAccount = acc;
+  $('account-email-label').textContent = acc.email_address;
+  const init = avatarInitial(acc.email_address);
+  const av = $('account-avatar');
+  av.textContent = init;
+  av.style.background = avatarColor(acc.email_address);
+  loadFolders();
+}
+
+function renderAccountDropdown() {
+  $('account-list-dropdown').innerHTML = S.accounts.map(a => `
+    <div onclick="selectAccount(${a.id})" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:.88rem;transition:background .1s" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+      <div class="avatar" style="background:${avatarColor(a.email_address)};width:28px;height:28px;font-size:.7rem">${avatarInitial(a.email_address)}</div>
+      <span>${esc(a.email_address)}</span>
+    </div>
+  `).join('');
+}
+
+function selectAccount(id) {
+  const acc = S.accounts.find(a => a.id === id);
+  if (acc) { setAccount(acc); $('account-dropdown').style.display = 'none'; }
+}
+
+$('account-toggle-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  const d = $('account-dropdown');
+  d.style.display = d.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', () => { $('account-dropdown').style.display = 'none'; });
+
+// =============================================
+// フォルダ
+// =============================================
+const FOLDER_ICONS_SVG = {
+  inbox: `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
+  sent:  `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+  draft: `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
+  trash: `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
+  spam:  `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  custom:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+};
+
+async function loadFolders() {
+  if (!S.curAccount) return;
+  const d = await api(`/mail/api/folders/?account_id=${S.curAccount.id}`);
+  if (!d.ok) return;
+  S.folders = d.folders;
+  renderFolders();
+  const inbox = d.folders.find(f => f.folder_type === 'inbox') || d.folders[0];
+  if (inbox) selectFolder(inbox);
+}
+
+function renderFolders() {
+  const el = $('folder-list');
+  if (!S.folders.length) { el.innerHTML = '<div style="padding:12px 16px;font-size:.82rem;color:var(--text-light)">フォルダなし</div>'; return; }
+  el.innerHTML = S.folders.map(f => `
+    <div class="folder-item${S.curFolder?.id === f.id ? ' active':''}" data-fid="${f.id}" data-fname="${esc(f.name)}">
+      <span class="fi-icon">${FOLDER_ICONS_SVG[f.folder_type] || FOLDER_ICONS_SVG.custom}</span>
+      <span class="folder-name">${esc(f.name)}</span>
+      <span class="folder-badge${f.unread_count===0?' zero':''}">${f.unread_count}</span>
+    </div>
+  `).join('');
+  el.querySelectorAll('.folder-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const f = S.folders.find(x => x.id === parseInt(el.dataset.fid));
+      if (f) selectFolder(f);
+    });
+  });
+}
+
+function selectFolder(folder) {
+  S.curFolder = folder;
+  S.page = 1; S.emails = []; S.curEmailId = null;
+  $('folder-title').textContent = folder.name;
+  showEmpty();
+  renderFolders();
+  loadEmails();
+}
+
+// =============================================
+// メール一覧
+// =============================================
+async function loadEmails(append = false) {
+  if (!S.curFolder && !S.curLabel || S.loading) return;
+  S.loading = true;
+  if (!append) renderSkeletons();
+  try {
+    const param = S.curLabel
+      ? `label_id=${S.curLabel.id}`
+      : `folder_id=${S.curFolder.id}`;
+    const d = await api(`/mail/api/emails/?${param}&page=${S.page}`);
+    if (!d.ok) { toast('メール一覧の取得に失敗しました', 'error'); return; }
+    S.emails = append ? [...S.emails, ...d.emails] : d.emails;
+    S.total = d.total;
+    $('mail-count').textContent = S.total ? `${S.total}件` : '';
+    renderEmailList();
+  } finally { S.loading = false; }
+}
+
+function renderSkeletons() {
+  $('email-list').innerHTML = Array(7).fill(`
+    <div class="skel-row">
+      <div class="skel" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div class="skel" style="width:40%;height:13px"></div>
+          <div class="skel" style="width:50px;height:13px;margin-left:auto"></div>
+        </div>
+        <div class="skel" style="width:70%;height:12px;margin-bottom:4px"></div>
+        <div class="skel" style="width:55%;height:11px"></div>
+      </div>
+    </div>`).join('');
+}
+
+function renderEmailList() {
+  const list = $('email-list');
+  if (!S.emails.length) {
+    list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-light);font-size:.9rem">メールがありません</div>';
+    return;
+  }
+  list.innerHTML = S.emails.map(e => {
+    const init = avatarInitial(e.from_address);
+    const col  = avatarColor(e.from_address);
+    return `
+    <div class="mail-row${e.is_read?'':' unread'}${e.id===S.curEmailId?' active':''}" data-eid="${e.id}">
+      <div class="mr-check${e._checked?' checked':''}" data-eid="${e.id}"></div>
+      <div class="avatar" style="background:${col}">${esc(init)}</div>
+      <div class="mr-body">
+        <div class="mr-top">
+          <span class="mr-from">${esc(e.from_address.replace(/<[^>]+>/,'').trim() || e.from_address)}</span>
+          <span class="mr-time">${fmtDate(e.received_at)}</span>
+        </div>
+        <div class="mr-subject">${esc(e.subject || '（件名なし）')}</div>
+        <div class="mr-preview">${esc(e.preview || '')}</div>
+        <div class="mr-icons">
+          <button class="star-btn${e.is_starred?' on':''}" data-eid="${e.id}" title="スター">
+            ${e.is_starred
+              ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="#f2c94c" stroke="#f2c94c" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+              : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+            }
+          </button>
+          ${e.has_attachments ? '<span class="attach-icon" title="添付あり"><svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>' : ''}
+          ${(e.labels||[]).map(l=>`<span class="label-chip" style="background:${esc(l.color)}">${esc(l.name)}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.mail-row').forEach(el => {
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('.star-btn') || ev.target.closest('.mr-check')) return;
+      openMail(parseInt(el.dataset.eid));
+    });
+    el.addEventListener('contextmenu', ev => {
+      ev.preventDefault();
+      S.ctxId = parseInt(el.dataset.eid);
+      const cm = $('ctx-menu');
+      cm.style.left = Math.min(ev.clientX, window.innerWidth-180) + 'px';
+      cm.style.top  = Math.min(ev.clientY, window.innerHeight-220) + 'px';
+      cm.style.display = 'block';
+    });
+  });
+
+  list.querySelectorAll('.star-btn').forEach(btn => {
+    btn.addEventListener('click', ev => { ev.stopPropagation(); toggleStar(parseInt(btn.dataset.eid)); });
+  });
+
+  list.onscroll = () => {
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 80 && S.emails.length < S.total && !S.loading) {
+      S.page++;
+      loadEmails(true);
+    }
+  };
+}
+
+// =============================================
+// メール詳細
+// =============================================
+async function openMail(id) {
+  S.curEmailId = id;
+  document.querySelectorAll('.mail-row').forEach(r => r.classList.toggle('active', parseInt(r.dataset.eid)===id));
+  hideReply(); hideForward();
+
+  const item = S.emails.find(e => e.id === id);
+  if (item && !item.is_read) {
+    item.is_read = true;
+    api(`/mail/api/emails/${id}/read/`, { method:'POST' });
+    bumpUnread(-1);
+    renderEmailList();
+  }
+
+  showDetail();
+  $('detail-subject').textContent = '読み込み中…';
+
+  const d = await api(`/mail/api/emails/${id}/`);
+  if (!d.ok) { toast('本文の取得に失敗しました', 'error'); return; }
+  const m = d.email;
+  S.curEmail = m;
+
+  $('detail-subject').textContent = m.subject || '（件名なし）';
+  const fromName = m.from_address.replace(/<[^>]+>/, '').trim() || m.from_address;
+  const fromAddr = (m.from_address.match(/<([^>]+)>/) || [])[1] || '';
+  const av = $('detail-avatar');
+  av.textContent = avatarInitial(m.from_address);
+  av.style.background = avatarColor(m.from_address);
+  $('detail-from-name').textContent = fromName;
+  $('detail-from-addr').textContent = fromAddr ? `<${fromAddr}>` : '';
+  $('detail-to-line').textContent = `宛先: ${(m.to_addresses||[]).join(', ')}${m.cc_addresses?.length ? ' | CC: '+(m.cc_addresses.join(', ')) : ''}`;
+  $('detail-date').textContent = fmtDateFull(m.received_at);
+
+  const iframe = $('body-iframe'), tv = $('body-text');
+  if (m.body_html) {
+    iframe.style.display = 'block'; tv.style.display = 'none';
+    iframe.srcdoc = m.body_html;
+  } else {
+    iframe.style.display = 'none'; tv.style.display = 'block';
+    tv.textContent = m.body_text || '（本文なし）';
+  }
+}
+
+function showEmpty() {
+  $('empty-state').style.display='flex'; $('mail-detail').style.display='none';
+  $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+}
+function showDetail() {
+  $('empty-state').style.display='none'; $('mail-detail').style.display='flex';
+  $('list-pane').style.display='none'; $('body-pane').style.display='flex';
+}
+
+// =============================================
+// スター
+// =============================================
+async function toggleStar(id) {
+  const d = await api(`/mail/api/emails/${id}/star/`, { method:'POST' });
+  if (!d.ok) return;
+  const e = S.emails.find(x => x.id===id);
+  if (e) { e.is_starred = d.is_starred; renderEmailList(); }
+}
+
+// =============================================
+// 未読カウント更新
+// =============================================
+function bumpUnread(delta) {
+  const f = S.folders.find(x => x.id === S.curFolder?.id);
+  if (f) { f.unread_count = Math.max(0, f.unread_count+delta); renderFolders(); }
+}
+
+// =============================================
+// 削除
+// =============================================
+$('btn-delete').addEventListener('click', async () => {
+  if (!S.curEmailId || !confirm('このメールを削除しますか？')) return;
+  const d = await api(`/mail/api/emails/${S.curEmailId}/`, { method:'DELETE' });
+  if (d.ok) {
+    toast('削除しました', 'success');
+    S.emails = S.emails.filter(e => e.id!==S.curEmailId);
+    S.curEmailId = null; showEmpty(); renderEmailList();
+  } else toast('削除失敗: '+d.error, 'error');
+});
+
+// =============================================
+// アーカイブ（ゴミ箱へ移動）
+// =============================================
+$('btn-archive').addEventListener('click', async () => {
+  if (!S.curEmailId) return;
+  const trash = S.folders.find(f => f.folder_type==='trash');
+  if (!trash) { toast('ゴミ箱フォルダが見つかりません', 'error'); return; }
+  const d = await api(`/mail/api/emails/${S.curEmailId}/move/`, { method:'POST', body:JSON.stringify({folder_id:trash.id}) });
+  if (d.ok) {
+    toast('アーカイブしました', 'success');
+    S.emails = S.emails.filter(e => e.id!==S.curEmailId);
+    S.curEmailId = null; showEmpty(); renderEmailList();
+  } else toast('失敗: '+d.error, 'error');
+});
+
+// =============================================
+// 未読に戻す
+// =============================================
+$('btn-mark-unread').addEventListener('click', async () => {
+  if (!S.curEmailId) return;
+  const e = S.emails.find(x => x.id===S.curEmailId);
+  if (e) {
+    e.is_read = false;
+    bumpUnread(1);
+    renderEmailList();
+    toast('未読にしました', 'info');
+  }
+});
+
+// =============================================
+// 返信
+// =============================================
+$('btn-back').addEventListener('click', () => {
+  S.curEmailId = null;
+  document.querySelectorAll('.mail-row').forEach(r => r.classList.remove('active'));
+  hideReply(); hideForward();
+  $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+});
+
+$('btn-reply').addEventListener('click', () => {
+  if (!S.curEmail) return;
+  hideForward();
+  $('reply-to-addr').textContent = '返信先: ' + S.curEmail.from_address;
+  $('reply-body').value = '';
+  $('reply-wrap').style.display = 'block';
+  $('reply-body').focus();
+});
+$('btn-reply-cancel').addEventListener('click', hideReply);
+$('btn-reply-send').addEventListener('click', async () => {
+  const body = $('reply-body').value.trim();
+  if (!body) { toast('本文を入力してください', 'error'); return; }
+  const btn = $('btn-reply-send'); btn.disabled = true;
+  const d = await api(`/mail/api/reply/${S.curEmailId}/`, { method:'POST', body:JSON.stringify({body}) });
+  btn.disabled = false;
+  if (d.ok) { toast('返信しました', 'success'); hideReply(); }
+  else toast('送信失敗: '+d.error, 'error');
+});
+function hideReply() { $('reply-wrap').style.display='none'; $('reply-body').value=''; }
+
+// =============================================
+// 転送
+// =============================================
+$('btn-forward').addEventListener('click', () => {
+  if (!S.curEmail) return;
+  hideReply();
+  $('forward-to').value = ''; $('forward-body').value = '';
+  $('forward-wrap').style.display = 'block';
+  $('forward-to').focus();
+});
+$('btn-forward-cancel').addEventListener('click', hideForward);
+$('btn-forward-send').addEventListener('click', async () => {
+  const to = $('forward-to').value.trim();
+  if (!to) { toast('転送先を入力してください', 'error'); return; }
+  const btn = $('btn-forward-send'); btn.disabled = true;
+  const d = await api(`/mail/api/forward/${S.curEmailId}/`, {
+    method:'POST', body:JSON.stringify({ to: to.split(',').map(s=>s.trim()).filter(Boolean), body:$('forward-body').value.trim() })
+  });
+  btn.disabled = false;
+  if (d.ok) { toast('転送しました', 'success'); hideForward(); }
+  else toast('転送失敗: '+d.error, 'error');
+});
+function hideForward() { $('forward-wrap').style.display='none'; }
+
+// =============================================
+// 新規作成ペイン
+// =============================================
+function openCompose() {
+  ['c-to','c-cc','c-subject','c-body'].forEach(id => $(id).value='');
+  $('list-pane').style.display='none';
+  $('body-pane').style.display='none';
+  $('compose-pane').classList.add('open');
+  $('c-to').focus();
+}
+function closeCompose() {
+  $('compose-pane').classList.remove('open');
+  $('list-pane').style.display='flex';
+}
+$('btn-compose').addEventListener('click', openCompose);
+$('compose-close').addEventListener('click', closeCompose);
+
+$('btn-compose-send').addEventListener('click', async () => {
+  const to=$('c-to').value.trim(), sub=$('c-subject').value.trim(), body=$('c-body').value.trim();
+  if(!to) { toast('宛先（To）を入力してください','error'); return; }
+  if(!sub) { toast('件名を入力してください','error'); return; }
+  if(!body) { toast('本文を入力してください','error'); return; }
+  if(!S.curAccount) { toast('アカウントを選択してください','error'); return; }
+  const btn=$('btn-compose-send'); btn.disabled=true;
+  const cc=$('c-cc').value.trim();
+  const d = await api('/mail/api/send/', {
+    method:'POST',
+    body:JSON.stringify({
+      account_id:S.curAccount.id,
+      to:to.split(',').map(s=>s.trim()).filter(Boolean),
+      cc:cc?cc.split(',').map(s=>s.trim()).filter(Boolean):[],
+      subject:sub, body,
+    })
+  });
+  btn.disabled=false;
+  if(d.ok) { toast('送信しました ✓','success'); closeCompose(); }
+  else toast('送信失敗: '+d.error,'error');
+});
+
+// =============================================
+// 同期
+// =============================================
+async function syncNow() {
+  if (!S.curAccount) return;
+  toast('同期中…','info');
+  const d = await api(`/mail/api/accounts/${S.curAccount.id}/sync/`, { method:'POST' });
+  if (d.ok) { toast('同期をキューに追加しました','success'); setTimeout(loadFolders, 2000); }
+  else toast('同期失敗: '+d.error,'error');
+}
+$('btn-sync').addEventListener('click', syncNow);
+$('btn-sync-top').addEventListener('click', syncNow);
+
+// =============================================
+// コンテキストメニュー
+// =============================================
+document.addEventListener('click', () => $('ctx-menu').style.display='none');
+$('ctx-menu').addEventListener('click', e => e.stopPropagation());
+
+$('ctx-reply').addEventListener('click', () => { openMail(S.ctxId); setTimeout(()=>$('btn-reply').click(),300); });
+$('ctx-forward').addEventListener('click', () => { openMail(S.ctxId); setTimeout(()=>$('btn-forward').click(),300); });
+$('ctx-delete').addEventListener('click', async () => {
+  if(!S.ctxId||!confirm('削除しますか？'))return;
+  const id=S.ctxId;
+  const d=await api(`/mail/api/emails/${id}/`,{method:'DELETE'});
+  if(d.ok){
+    toast('削除しました','success');
+    S.emails=S.emails.filter(e=>e.id!==id);
+    if(S.curEmailId===id){S.curEmailId=null;showEmpty();}
+    renderEmailList();
+  } else toast('削除失敗: '+d.error,'error');
+});
+$('ctx-move').addEventListener('click', async () => {
+  if(!S.ctxId||!S.folders.length)return;
+  const list=S.folders.map((f,i)=>`${i+1}: ${f.name}`).join('\n');
+  const c=prompt('移動先フォルダ番号:\n'+list);
+  const idx=parseInt(c)-1;
+  if(isNaN(idx)||idx<0||idx>=S.folders.length)return;
+  const tf=S.folders[idx]; const id=S.ctxId;
+  const d=await api(`/mail/api/emails/${id}/move/`,{method:'POST',body:JSON.stringify({folder_id:tf.id})});
+  if(d.ok){
+    toast(`「${tf.name}」へ移動しました`,'success');
+    S.emails=S.emails.filter(e=>e.id!==id);
+    if(S.curEmailId===id){S.curEmailId=null;showEmpty();}
+    renderEmailList();
+  } else toast('移動失敗: '+d.error,'error');
+});
+$('ctx-read-toggle').addEventListener('click', () => {
+  const e=S.emails.find(x=>x.id===S.ctxId);
+  if(e){e.is_read=!e.is_read;bumpUnread(e.is_read?-1:1);renderEmailList();}
+});
+
+// =============================================
+// 検索（フロントエンドフィルタ）
+// =============================================
+$('search-input').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  if (!q) { renderEmailList(); return; }
+  const filtered = S.emails.filter(e =>
+    (e.subject||'').toLowerCase().includes(q) ||
+    (e.from_address||'').toLowerCase().includes(q) ||
+    (e.preview||'').toLowerCase().includes(q)
+  );
+  // 一時的にレンダリング（S.emailsは変えない）
+  const saved = S.emails;
+  S.emails = filtered;
+  renderEmailList();
+  S.emails = saved;
+});
+
+// =============================================
+// ラベル
+// =============================================
+const LABEL_COLORS = ['#0078d4','#107c10','#8764b8','#c43e1c','#008272','#ca5010','#e3008c','#038387','#69797e','#a4262c'];
+let _lmColor = LABEL_COLORS[0];
+
+async function loadLabels() {
+  const d = await api('/mail/api/labels/');
+  if (!d.ok) return;
+  S.labels = d.labels;
+  renderLabels();
+}
+
+function renderLabels() {
+  const el = $('label-list');
+  if (!S.labels.length) {
+    el.innerHTML = '<div style="padding:4px 14px 6px;font-size:.75rem;color:var(--text-light)">ラベルなし</div>';
+    return;
+  }
+  el.innerHTML = S.labels.map(l => `
+    <div class="folder-item${S.curLabel?.id===l.id?' active':''}" data-lid="${l.id}" style="gap:7px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${esc(l.color)};flex-shrink:0;display:inline-block"></span>
+      <span class="folder-name" style="flex:1">${esc(l.name)}</span>
+      <button class="label-del-btn" data-lid="${l.id}" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:.8rem;padding:0 2px;opacity:0" title="削除">✕</button>
+    </div>
+  `).join('');
+  el.querySelectorAll('.folder-item').forEach(row => {
+    row.addEventListener('mouseenter', () => { const b = row.querySelector('.label-del-btn'); if(b) b.style.opacity='1'; });
+    row.addEventListener('mouseleave', () => { const b = row.querySelector('.label-del-btn'); if(b) b.style.opacity='0'; });
+    row.addEventListener('click', ev => {
+      if (ev.target.closest('.label-del-btn')) return;
+      const l = S.labels.find(x => x.id === parseInt(row.dataset.lid));
+      if (l) selectLabel(l);
+    });
+  });
+  el.querySelectorAll('.label-del-btn').forEach(btn => {
+    btn.addEventListener('click', ev => { ev.stopPropagation(); deleteLabel(parseInt(btn.dataset.lid)); });
+  });
+}
+
+function selectLabel(label) {
+  S.curLabel = label; S.curFolder = null;
+  S.page = 1; S.emails = []; S.curEmailId = null;
+  $('folder-title').textContent = '🏷 ' + label.name;
+  showEmpty();
+  renderFolders(); renderLabels();
+  loadEmails();
+}
+
+async function deleteLabel(id) {
+  if (!confirm('このラベルを削除しますか？')) return;
+  const d = await api(`/mail/api/labels/${id}/`, { method: 'DELETE' });
+  if (d.ok) {
+    S.labels = S.labels.filter(l => l.id !== id);
+    if (S.curLabel?.id === id) { S.curLabel = null; showEmpty(); }
+    renderLabels();
+    toast('ラベルを削除しました', 'success');
+  } else toast('削除失敗: ' + d.error, 'error');
+}
+
+// ラベル作成モーダル
+function initLabelModal() {
+  const colors = $('lm-colors');
+  colors.innerHTML = LABEL_COLORS.map(c =>
+    `<div class="lm-color${c===_lmColor?' sel':''}" data-c="${c}" style="background:${c}" title="${c}"></div>`
+  ).join('');
+  colors.querySelectorAll('.lm-color').forEach(el => {
+    el.addEventListener('click', () => {
+      _lmColor = el.dataset.c;
+      colors.querySelectorAll('.lm-color').forEach(e => e.classList.toggle('sel', e.dataset.c === _lmColor));
+    });
+  });
+}
+
+$('btn-new-label').addEventListener('click', () => {
+  $('lm-name').value = '';
+  initLabelModal();
+  $('label-modal-overlay').classList.add('open');
+  $('lm-name').focus();
+});
+$('lm-cancel').addEventListener('click', () => $('label-modal-overlay').classList.remove('open'));
+$('label-modal-overlay').addEventListener('click', function(e) { if(e.target===this) this.classList.remove('open'); });
+$('lm-save').addEventListener('click', async () => {
+  const name = $('lm-name').value.trim();
+  if (!name) { toast('ラベル名を入力してください', 'error'); return; }
+  const d = await api('/mail/api/labels/', { method:'POST', body:JSON.stringify({ name, color: _lmColor }) });
+  if (d.ok) {
+    S.labels.push(d.label);
+    renderLabels();
+    $('label-modal-overlay').classList.remove('open');
+    toast('ラベルを作成しました', 'success');
+  } else toast('作成失敗: ' + d.error, 'error');
+});
+
+// ラベルドロップダウン（詳細画面）
+$('btn-label-menu').addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = $('label-dropdown');
+  if (dd.style.display !== 'none') { dd.style.display = 'none'; return; }
+  if (!S.curEmail || !S.labels.length) { toast('ラベルがありません', 'info'); return; }
+  const applied = (S.curEmail.labels || []).map(l => l.id);
+  dd.innerHTML = S.labels.map(l => {
+    const on = applied.includes(l.id);
+    return `<span class="label-chip" data-lid="${l.id}" data-on="${on}" style="background:${esc(l.color)};cursor:pointer;opacity:${on?1:.5}" title="${on?'外す':'付ける'}">${esc(l.name)}</span>`;
+  }).join(' ');
+  dd.style.display = 'flex';
+  dd.querySelectorAll('.label-chip').forEach(chip => {
+    chip.addEventListener('click', async ev => {
+      ev.stopPropagation();
+      const lid = parseInt(chip.dataset.lid);
+      const on = chip.dataset.on === 'true';
+      const method = on ? 'DELETE' : 'POST';
+      const d = await api(`/mail/api/emails/${S.curEmailId}/labels/${lid}/`, { method });
+      if (d.ok) {
+        if (on) {
+          S.curEmail.labels = (S.curEmail.labels||[]).filter(l=>l.id!==lid);
+        } else {
+          const label = S.labels.find(x=>x.id===lid);
+          S.curEmail.labels = [...(S.curEmail.labels||[]), label];
+        }
+        // 一覧の該当メールも更新
+        const em = S.emails.find(x=>x.id===S.curEmailId);
+        if (em) em.labels = S.curEmail.labels;
+        // ドロップダウン再描画
+        $('btn-label-menu').click(); $('btn-label-menu').click();
+      }
+    });
+  });
+});
+document.addEventListener('click', () => { $('label-dropdown').style.display='none'; });
+
+// =============================================
+// loadEmails - ラベル対応
+// =============================================
+
+// =============================================
+// 初期化
+// =============================================
+loadAccounts();
+loadLabels();
+</script>
+</body>
+</html>

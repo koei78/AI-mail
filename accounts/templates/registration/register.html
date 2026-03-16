@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新規登録 — MailHub</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#0078d4;--indigo:#4f46e5;--green:#059669;
+  --text:#111827;--sub:#6b7280;--border:#e5e7eb;--bg:#f9fafb;
+  --red:#dc2626;--red-bg:#fef2f2;
+}
+body{
+  font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;
+  min-height:100vh;display:grid;grid-template-columns:1fr 1fr;background:#fff;
+}
+/* 左パネル */
+.left{
+  background:linear-gradient(145deg,#052e16,#064e3b,#0f172a);
+  display:flex;flex-direction:column;justify-content:center;padding:60px 52px;
+  position:relative;overflow:hidden;
+}
+.left::before{
+  content:'';position:absolute;width:480px;height:480px;border-radius:50%;
+  background:radial-gradient(circle,rgba(16,185,129,.15),transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+}
+.l-logo{display:flex;align-items:center;gap:10px;margin-bottom:52px;position:relative}
+.l-icon{
+  width:40px;height:40px;background:linear-gradient(135deg,var(--green),var(--blue));
+  border-radius:11px;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:1.15rem;
+}
+.l-name{font-size:1.2rem;font-weight:800;color:#fff}
+.l-name em{color:#6ee7b7;font-style:normal}
+.l-h{font-size:clamp(1.6rem,2.5vw,2.4rem);font-weight:900;color:#fff;line-height:1.2;letter-spacing:-.03em;margin-bottom:14px;position:relative}
+.l-h .ac{color:#6ee7b7}
+.l-p{font-size:.9rem;color:rgba(255,255,255,.5);line-height:1.8;max-width:360px;position:relative;margin-bottom:44px}
+.l-perks{display:flex;flex-direction:column;gap:14px;position:relative}
+.l-perk{display:flex;align-items:center;gap:12px}
+.l-perk-check{
+  width:24px;height:24px;border-radius:50%;background:rgba(110,231,183,.2);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#6ee7b7;font-weight:700;
+}
+.l-perk-text{font-size:.86rem;color:rgba(255,255,255,.7)}
+/* 右パネル */
+.right{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 48px;background:#fff;overflow-y:auto;
+}
+.r-back{
+  align-self:flex-start;display:flex;align-items:center;gap:6px;
+  font-size:.82rem;color:var(--sub);text-decoration:none;margin-bottom:auto;
+  transition:color .15s;
+}
+.r-back:hover{color:var(--text)}
+.r-body{width:100%;max-width:380px;margin:auto 0}
+.r-h{font-size:1.6rem;font-weight:900;letter-spacing:-.03em;margin-bottom:6px}
+.r-sub{font-size:.88rem;color:var(--sub);margin-bottom:28px;line-height:1.5}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.badge{
+  font-size:.74rem;font-weight:600;padding:4px 10px;border-radius:100px;
+  background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;
+  display:flex;align-items:center;gap:4px;
+}
+.badge::before{content:'✓'}
+/* フォーム */
+.fg{margin-bottom:16px}
+label{display:block;font-size:.8rem;font-weight:700;color:var(--text);margin-bottom:5px;letter-spacing:.01em}
+input[type=text],input[type=email],input[type=password]{
+  width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:9px;
+  font-size:.95rem;outline:none;color:var(--text);background:#fff;
+  transition:border-color .15s,box-shadow .15s;
+}
+input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,120,212,.1)}
+input.e{border-color:var(--red)}
+.hint{font-size:.74rem;color:var(--sub);margin-top:4px}
+.fe{font-size:.76rem;color:var(--red);margin-top:4px}
+.err-box{background:var(--red-bg);border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:20px}
+.err-box li{list-style:none;font-size:.82rem;color:var(--red);padding:2px 0}
+.err-box li::before{content:'⚠ '}
+/* パスワード強度 */
+.pw-wrap{margin-top:6px}
+.pw-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden}
+.pw-fill{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0}
+.pw-txt{font-size:.72rem;margin-top:3px;color:var(--sub)}
+.btn{
+  width:100%;padding:13px;border:none;border-radius:9px;
+  background:linear-gradient(135deg,var(--blue),var(--indigo));
+  color:#fff;font-size:1rem;font-weight:800;cursor:pointer;
+  transition:opacity .15s,transform .12s;letter-spacing:.01em;margin-top:4px;
+}
+.btn:hover{opacity:.9;transform:translateY(-1px)}
+.divider{text-align:center;color:#d1d5db;margin:22px 0;font-size:.8rem;position:relative}
+.divider::before,.divider::after{content:'';position:absolute;top:50%;width:44%;height:1px;background:#e5e7eb}
+.divider::before{left:0}.divider::after{right:0}
+.r-link{text-align:center;font-size:.88rem;color:var(--sub)}
+.r-link a{color:var(--blue);font-weight:700;text-decoration:none}
+.r-link a:hover{text-decoration:underline}
+.r-bottom{margin-top:auto;padding-top:16px}
+@media(max-width:720px){body{grid-template-columns:1fr}.left{display:none}.right{padding:40px 28px}}
+</style>
+</head>
+<body>
+
+<!-- 左パネル -->
+<div class="left">
+  <div class="l-logo">
+    <div class="l-icon">✉</div>
+    <div class="l-name">Mail<em>Hub</em></div>
+  </div>
+  <div class="l-h">今すぐ始めよう。<br><span class="ac">無料で使える。</span></div>
+  <p class="l-p">アカウントを作成してメールサーバーを登録するだけ。30秒でセットアップ完了です。</p>
+  <div class="l-perks">
+    <div class="l-perk"><div class="l-perk-check">✓</div><div class="l-perk-text">クレジットカード不要・完全無料</div></div>
+    <div class="l-perk"><div class="l-perk-check">✓</div><div class="l-perk-text">IMAP/SMTP 対応のメールなら何でも使える</div></div>
+    <div class="l-perk"><div class="l-perk-check">✓</div><div class="l-perk-text">パスワードはFernet暗号化で安全に保存</div></div>
+    <div class="l-perk"><div class="l-perk-check">✓</div><div class="l-perk-text">マルチアカウント対応</div></div>
+    <div class="l-perk"><div class="l-perk-check">✓</div><div class="l-perk-text">バックグラウンドで自動同期</div></div>
+  </div>
+</div>
+
+<!-- 右パネル -->
+<div class="right">
+  <a href="/" class="r-back">
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    トップへ戻る
+  </a>
+
+  <div class="r-body">
+    <div class="r-h">アカウントを作成</div>
+    <div class="r-sub">30秒で登録完了。今すぐ無料で始められます。</div>
+    <div class="badges">
+      <span class="badge">無料</span>
+      <span class="badge">30秒で完了</span>
+      <span class="badge">暗号化保存</span>
+    </div>
+
+    {% if form.non_field_errors %}
+    <ul class="err-box">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="fg">
+        <label for="id_username">ユーザー名 *</label>
+        <input type="text" name="username" id="id_username"
+               value="{{ form.username.value|default:'' }}"
+               placeholder="yamada_taro" autocomplete="username" autofocus
+               class="{% if form.username.errors %}e{% endif %}">
+        <div class="hint">英数字・アンダースコアが使えます</div>
+        {% for e in form.username.errors %}<div class="fe">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="fg">
+        <label for="id_email">メールアドレス *</label>
+        <input type="email" name="email" id="id_email"
+               value="{{ form.email.value|default:'' }}"
+               placeholder="you@example.com" autocomplete="email"
+               class="{% if form.email.errors %}e{% endif %}">
+        {% for e in form.email.errors %}<div class="fe">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="fg">
+        <label for="id_password1">パスワード *</label>
+        <input type="password" name="password1" id="id_password1"
+               placeholder="8文字以上" autocomplete="new-password"
+               class="{% if form.password1.errors %}e{% endif %}">
+        <div class="pw-wrap">
+          <div class="pw-bar"><div class="pw-fill" id="pw-fill"></div></div>
+          <div class="pw-txt" id="pw-txt">パスワードを入力してください</div>
+        </div>
+        {% for e in form.password1.errors %}<div class="fe">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="fg">
+        <label for="id_password2">パスワード確認 *</label>
+        <input type="password" name="password2" id="id_password2"
+               placeholder="もう一度入力" autocomplete="new-password"
+               class="{% if form.password2.errors %}e{% endif %}">
+        {% for e in form.password2.errors %}<div class="fe">{{ e }}</div>{% endfor %}
+      </div>
+      <button type="submit" class="btn">アカウントを作成する →</button>
+    </form>
+
+    <div class="divider">すでにアカウントをお持ちの方</div>
+    <div class="r-link"><a href="/accounts/login/">ログインはこちら →</a></div>
+  </div>
+
+  <div class="r-bottom"></div>
+</div>
+
+<script>
+document.getElementById('id_password1').addEventListener('input',function(){
+  const v=this.value,fill=document.getElementById('pw-fill'),txt=document.getElementById('pw-txt');
+  if(!v){fill.style.width='0';txt.textContent='パスワードを入力してください';txt.style.color='var(--sub)';return}
+  let s=0;
+  if(v.length>=8)s+=20;if(v.length>=12)s+=20;
+  if(/[A-Z]/.test(v))s+=20;if(/[0-9]/.test(v))s+=20;if(/[^A-Za-z0-9]/.test(v))s+=20;
+  const lv=[{m:80,p:'100%',c:'#10b981',t:'非常に強い'},{m:60,p:'80%',c:'#22c55e',t:'強い'},
+            {m:40,p:'60%',c:'#eab308',t:'普通'},{m:20,p:'35%',c:'#f97316',t:'弱い'},
+            {m:0,p:'15%',c:'#ef4444',t:'非常に弱い'}].find(l=>s>=l.m);
+  fill.style.width=lv.p;fill.style.background=lv.c;txt.textContent=lv.t;txt.style.color=lv.c;
+});
+</script>
+</body>
+</html>
