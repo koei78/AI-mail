@@ -63,6 +63,17 @@ class MailAccount(models.Model):
     last_synced_at = models.DateTimeField(null=True, blank=True, verbose_name='最終同期日時')
     is_active = models.BooleanField(default=True, verbose_name='有効')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    # 認証方式: 'password' or 'oauth2'
+    auth_type = models.CharField(
+        max_length=20,
+        default='password',
+        verbose_name='認証方式',
+    )
+    # OAuth2リフレッシュトークン（Fernetで暗号化）
+    oauth2_refresh_token_encrypted = models.TextField(
+        blank=True,
+        verbose_name='OAuth2リフレッシュトークン（暗号化済み）',
+    )
 
     class Meta:
         verbose_name = 'メールアカウント'
@@ -80,6 +91,18 @@ class MailAccount(models.Model):
         """暗号化されたパスワードを復号して返す"""
         f = _get_fernet()
         return f.decrypt(self.password_encrypted.encode()).decode()
+
+    def set_refresh_token(self, raw_token: str):
+        """OAuth2リフレッシュトークンをFernetで暗号化して保存"""
+        f = _get_fernet()
+        self.oauth2_refresh_token_encrypted = f.encrypt(raw_token.encode()).decode()
+
+    def get_refresh_token(self) -> str:
+        """暗号化されたOAuth2リフレッシュトークンを復号して返す"""
+        if not self.oauth2_refresh_token_encrypted:
+            return ''
+        f = _get_fernet()
+        return f.decrypt(self.oauth2_refresh_token_encrypted.encode()).decode()
 
 
 class MailFolder(models.Model):

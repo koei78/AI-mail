@@ -70,4 +70,10 @@ urlpatterns = [
     path('api/forward/<int:uid>/', views.api_forward, name='api_forward'),
     path('api/emails/<int:uid>/ai-reply/', views.api_ai_reply, name='api_ai_reply'),
     path('api/emails/<int:uid>/ai-chat/', views.api_ai_chat, name='api_ai_chat'),
+
+    # =============================
+    # Gmail OAuth2
+    # =============================
+    path('oauth/gmail/start/', views.gmail_oauth_start, name='gmail_oauth_start'),
+    path('oauth/gmail/callback/', views.gmail_oauth_callback, name='gmail_oauth_callback'),
 ]

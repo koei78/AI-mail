@@ -94,6 +94,29 @@
     .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
     .btn-success { background: #10b981; color: #fff; }
     .btn-success:hover { background: #059669; }
+    .btn-google {
+      width: 100%;
+      padding: 11px;
+      border: 2px solid #4285f4;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #fff;
+      color: #4285f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background .15s, color .15s;
+      text-decoration: none;
+      margin-bottom: 16px;
+    }
+    .btn-google:hover { background: #4285f4; color: #fff; }
+    .btn-google svg path { transition: fill .15s; }
+    .btn-google:hover svg path { fill: #fff; }
+    .divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #9ca3af; font-size: .85rem; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
     /* 接続テスト結果 */
     .test-results { margin: 16px 0; }
     .test-step {
@@ -148,15 +171,29 @@
   </div>
 
   <div class="card-body">
+    <!-- Google OAuth2ログイン -->
+    <a href="{% url 'mailer:gmail_oauth_start' %}" class="btn-google">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285f4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+      Googleアカウントで Gmail を連携する
+    </a>
+    <div class="divider">または手動で設定</div>
 
     <!-- STEP 1: サーバー情報入力 -->
     <div data-step="1" class="active">
       <div class="preset-label">サーバープリセット</div>
       <div class="presets">
+        <button type="button" class="preset-btn" data-preset="gmail" style="background:#fff0f0;border-color:#ea4335;color:#ea4335;font-weight:600">Gmail</button>
         <button type="button" class="preset-btn" data-preset="sakura">さくらインターネット</button>
         <button type="button" class="preset-btn" data-preset="xserver">Xserver</button>
         <button type="button" class="preset-btn" data-preset="onamae">お名前.com</button>
         <button type="button" class="preset-btn" data-preset="lolipop">ロリポップ</button>
+        <button type="button" class="preset-btn" data-preset="icloud" style="background:#f0f0ff;border-color:#555;color:#333;font-weight:600">iCloud</button>
+      </div>
+      <div id="gmail-hint" style="display:none;margin-bottom:16px;padding:12px 14px;background:#fff8e1;border:1px solid #f0c040;border-radius:8px;font-size:.82rem;color:#7a5800;">
+        <strong>Gmail をご利用の場合</strong><br>
+        パスワード欄には <strong>アプリパスワード</strong> を入力してください（通常のGmailパスワードは使えません）。<br>
+        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" style="color:#0078d4">アプリパスワードの発行 →</a>
+        　※ Googleアカウントで2段階認証が有効になっている必要があります。
       </div>
 
       <div class="form-group">
@@ -275,6 +312,13 @@ const getCsrf = () => document.querySelector('meta[name="csrf-token"]').content;
 // サーバープリセット
 // =============================
 const PRESETS = {
+  gmail: {
+    imap_host: 'imap.gmail.com',
+    imap_port: 993,
+    smtp_host: 'smtp.gmail.com',
+    smtp_port: 587,
+    ssl: 'starttls',
+  },
   sakura: {
     imap_host: '受信メールサーバーを入力(mail.yourdomain.sakura.ne.jp)',
     imap_port: 993,
@@ -316,6 +360,8 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
     document.querySelectorAll('[name="ssl"]').forEach(r => {
       r.checked = r.value === p.ssl;
     });
+    document.getElementById('gmail-hint').style.display =
+      btn.dataset.preset === 'gmail' ? 'block' : 'none';
   });
 });
 

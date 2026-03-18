@@ -55,6 +55,25 @@ def _parse_addresses(header_value: str) -> list[str]:
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
 
+def _get_oauth2_access_token(account) -> str:
+    """OAuth2アカウントのアクセストークンを取得（必要に応じてリフレッシュ）"""
+    from django.conf import settings as _settings
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request as GoogleRequest
+
+    refresh_token = account.get_refresh_token()
+    creds = Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        client_id=_settings.GOOGLE_CLIENT_ID,
+        client_secret=_settings.GOOGLE_CLIENT_SECRET,
+        token_uri='https://oauth2.googleapis.com/token',
+        scopes=['https://mail.google.com/'],
+    )
+    creds.refresh(GoogleRequest())
+    return creds.token
+
+
 def _parse_body(msg) -> tuple[str, str, bool, list]:
     """
     MIMEメッセージから本文と添付ファイル情報を取得する
@@ -176,10 +195,14 @@ class MailClient:
                 ssl_context=ssl_context,
                 timeout=30,
             )
-            self._imap.login(
-                self.account.username,
-                self.account.get_password(),
-            )
+            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+                access_token = _get_oauth2_access_token(self.account)
+                self._imap.oauth2_login(self.account.email_address, access_token)
+            else:
+                self._imap.login(
+                    self.account.username,
+                    self.account.get_password(),
+                )
         except imapclient.IMAPClient.Error as e:
             raise ImapConnectionError(f'IMAP接続エラー: {e}') from e
         except Exception as e:
@@ -490,15 +513,25 @@ class MailClient:
 
     def _build_smtp(self):
         """SMTPサーバーへ接続してログインしたインスタンスを返す"""
-        password = self.account.get_password()
         ssl_context = None
         if not self.account.ssl_verify:
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
+
         try:
+            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+                import base64
+                access_token = _get_oauth2_access_token(self.account)
+                smtp = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+                smtp.starttls(context=ssl_context)
+                auth_string = f'user={self.account.email_address}\x01auth=Bearer {access_token}\x01\x01'
+                encoded = base64.b64encode(auth_string.encode()).decode()
+                smtp.docmd('AUTH', 'XOAUTH2 ' + encoded)
+                return smtp
+
+            password = self.account.get_password()
             if self.account.use_ssl:
-                # ポート465 SSL
                 smtp = smtplib.SMTP_SSL(
                     self.account.smtp_host,
                     self.account.smtp_port,
@@ -506,7 +539,6 @@ class MailClient:
                     timeout=30,
                 )
             else:
-                # ポート587 STARTTLS
                 smtp = smtplib.SMTP(
                     self.account.smtp_host,
                     self.account.smtp_port,

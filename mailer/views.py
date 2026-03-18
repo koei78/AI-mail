@@ -7,6 +7,7 @@ from threading import Thread
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -1223,3 +1224,163 @@ def api_ai_chat(request, uid):
     if content.startswith('[QUESTION]'):
         return _json_ok({'reply': content[len('[QUESTION]'):].strip(), 'type': 'question'})
     return _json_ok({'reply': content, 'type': 'reply'})
+
+
+# =============================
+# Gmail OAuth2
+# =============================
+
+@login_required
+def gmail_oauth_start(request):
+    """Gmail OAuth2認証を開始する（Googleの認証ページへリダイレクト）"""
+    import os
+    # ローカル開発環境でHTTPを許可（本番はHTTPS必須）
+    if settings.DEBUG:
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    from google_auth_oauthlib.flow import Flow
+    from django.conf import settings as _settings
+
+    if not _settings.GOOGLE_CLIENT_ID or not _settings.GOOGLE_CLIENT_SECRET:
+        from django.contrib import messages
+        messages.error(request, 'Google OAuth2の設定が不足しています。管理者に連絡してください。')
+        return redirect('mailer:setup')
+
+    flow = Flow.from_client_config(
+        {
+            'web': {
+                'client_id': _settings.GOOGLE_CLIENT_ID,
+                'client_secret': _settings.GOOGLE_CLIENT_SECRET,
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
+                'redirect_uris': [_settings.GOOGLE_REDIRECT_URI],
+            }
+        },
+        scopes=[
+            'https://mail.google.com/',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'openid',
+        ],
+        redirect_uri=_settings.GOOGLE_REDIRECT_URI,
+    )
+    auth_url, state = flow.authorization_url(
+        access_type='offline',
+        prompt='consent',
+    )
+    request.session['gmail_oauth_state'] = state
+    return redirect(auth_url)
+
+
+@csrf_exempt
+def gmail_oauth_callback(request):
+    """Gmail OAuth2コールバック処理（Google外部リダイレクト受信）"""
+    # ログイン済みでなければログインページへ（next付き）
+    if not request.user.is_authenticated:
+        from urllib.parse import urlencode
+        next_url = request.get_full_path()
+        return redirect(f'/accounts/login/?next={next_url}')
+
+    import requests as _requests
+    from google_auth_oauthlib.flow import Flow
+    from django.conf import settings as _settings
+
+    error = request.GET.get('error')
+    if error:
+        return redirect(f'/mail/setup/?error={error}')
+
+    state = request.GET.get('state')
+    saved_state = request.session.get('gmail_oauth_state')
+    # stateが一致しない場合でもコードがあれば続行（セッション切れ対策）
+    if not state:
+        return redirect('/mail/setup/?error=no_state')
+
+    flow = Flow.from_client_config(
+        {
+            'web': {
+                'client_id': _settings.GOOGLE_CLIENT_ID,
+                'client_secret': _settings.GOOGLE_CLIENT_SECRET,
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
+                'redirect_uris': [_settings.GOOGLE_REDIRECT_URI],
+            }
+        },
+        scopes=[
+            'https://mail.google.com/',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'openid',
+        ],
+        redirect_uri=_settings.GOOGLE_REDIRECT_URI,
+        state=state,
+    )
+
+    try:
+        flow.fetch_token(code=request.GET.get('code'))
+    except Exception as e:
+        logger.error('OAuth2トークン取得エラー: %s', e)
+        return redirect('/mail/setup/?error=token_error')
+
+    credentials = flow.credentials
+    access_token = credentials.token
+    refresh_token = credentials.refresh_token
+
+    # ユーザー情報取得
+    try:
+        resp = _requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'},
+            timeout=10,
+        )
+        user_info = resp.json()
+        email = user_info.get('email', '')
+        name = user_info.get('name', '')
+    except Exception as e:
+        logger.error('ユーザー情報取得エラー: %s', e)
+        return redirect('/mail/setup/?error=userinfo_error')
+
+    if not email:
+        return redirect('/mail/setup/?error=no_email')
+
+    # MailAccount を作成または更新
+    account, created = MailAccount.objects.get_or_create(
+        user=request.user,
+        email_address=email,
+        defaults={
+            'display_name': name,
+            'imap_host': 'imap.gmail.com',
+            'imap_port': 993,
+            'smtp_host': 'smtp.gmail.com',
+            'smtp_port': 587,
+            'username': email,
+            'use_ssl': True,
+            'ssl_verify': True,
+            'auth_type': 'oauth2',
+            'is_active': True,
+        },
+    )
+
+    if refresh_token:
+        account.set_refresh_token(refresh_token)
+    account.auth_type = 'oauth2'
+    account.display_name = name or account.display_name
+    account.imap_host = 'imap.gmail.com'
+    account.imap_port = 993
+    account.smtp_host = 'smtp.gmail.com'
+    account.smtp_port = 587
+    account.username = email
+    account.use_ssl = True
+    account.is_active = True
+
+    # OAuth2アカウントにはダミーパスワードを設定（未設定の場合のみ）
+    if not account.password_encrypted:
+        account.set_password('oauth2_no_password')
+
+    account.save()
+
+    # フォルダ同期
+    try:
+        Thread(target=sync_account, args=(account.id,), daemon=True).start()
+    except Exception as e:
+        logger.warning('同期開始エラー: %s', e)
+
+    return redirect('mailer:index')

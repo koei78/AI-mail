@@ -117,6 +117,13 @@ LOGOUT_REDIRECT_URL = '/'
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # =============================
+# Google OAuth2
+# =============================
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8000/mail/oauth/gmail/callback/')
+
+# =============================
 # メール暗号化キー（Fernet）
 # ⚠️ 本番環境では必ず環境変数で設定すること
 # 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
