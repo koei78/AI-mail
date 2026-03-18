@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Email, MailAccount, MailFolder
+from .models import EmailLabel, Label, MailAccount, MailFolder
 
 
 @admin.register(MailAccount)
@@ -18,9 +18,12 @@ class MailFolderAdmin(admin.ModelAdmin):
     list_filter = ['folder_type']
 
 
-@admin.register(Email)
-class EmailAdmin(admin.ModelAdmin):
-    list_display = ['subject', 'from_address', 'is_read', 'is_starred', 'received_at']
-    list_filter = ['is_read', 'is_starred', 'has_attachments']
-    search_fields = ['subject', 'from_address']
-    date_hierarchy = 'received_at'
+@admin.register(Label)
+class LabelAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'color']
+
+
+@admin.register(EmailLabel)
+class EmailLabelAdmin(admin.ModelAdmin):
+    list_display = ['message_id', 'label', 'account']
+    list_filter = ['label']

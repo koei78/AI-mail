@@ -1,6 +1,13 @@
 """
 mailer/models.py
-メールアカウント・フォルダ・メール本体のモデル定義
+メールアカウント・フォルダ・ラベルのモデル定義
+
+メール本文はIMAPサーバーに保存されているため、DBには保存しない。
+DBに保存するのは:
+  - MailAccount  : 接続情報（パスワードはFernetで暗号化）
+  - MailFolder   : フォルダ一覧（表示用。アカウント追加時に同期）
+  - Label        : ユーザー定義ラベル
+  - EmailLabel   : メール(message_id)とラベルの紐付けのみ
 """
 from django.conf import settings
 from django.db import models
@@ -133,56 +140,25 @@ class Label(models.Model):
         return self.name
 
 
-class Email(models.Model):
-    """受信・送信メール本体"""
+class EmailLabel(models.Model):
+    """メール(message_id)とラベルの紐付け（IMAPにはラベル概念がないためDBで管理）"""
 
     account = models.ForeignKey(
         MailAccount,
         on_delete=models.CASCADE,
-        related_name='emails',
+        related_name='email_labels',
         verbose_name='メールアカウント',
     )
-    folder = models.ForeignKey(
-        MailFolder,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='emails',
-        verbose_name='フォルダ',
+    # RFC 2822 Message-ID をキーとして使用（IMAP UID はフォルダ移動で変わるため）
+    message_id = models.CharField(max_length=512, verbose_name='Message-ID')
+    label = models.ForeignKey(
+        Label,
+        on_delete=models.CASCADE,
+        related_name='email_labels',
+        verbose_name='ラベル',
     )
-
-    # IMAPのUID（フォルダ内で一意）
-    uid = models.IntegerField(verbose_name='IMAP UID')
-
-    # RFC 2822 Message-ID（グローバルで一意）
-    message_id = models.CharField(max_length=512, unique=True, verbose_name='Message-ID')
-
-    subject = models.CharField(max_length=998, blank=True, verbose_name='件名')
-    from_address = models.CharField(max_length=512, verbose_name='送信者')
-    to_addresses = models.JSONField(default=list, verbose_name='宛先リスト')
-    cc_addresses = models.JSONField(default=list, verbose_name='CCリスト')
-
-    body_text = models.TextField(blank=True, verbose_name='本文（テキスト）')
-    # ⚠️ XSS対策: HTMLを表示する際はiframeのsandbox属性を必ず使うこと
-    body_html = models.TextField(blank=True, verbose_name='本文（HTML）')
-
-    labels = models.ManyToManyField(
-        'Label', blank=True, related_name='emails', verbose_name='ラベル'
-    )
-
-    is_read = models.BooleanField(default=False, verbose_name='既読')
-    is_starred = models.BooleanField(default=False, verbose_name='スター')
-    has_attachments = models.BooleanField(default=False, verbose_name='添付あり')
-
-    received_at = models.DateTimeField(verbose_name='受信日時')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
 
     class Meta:
-        verbose_name = 'メール'
-        verbose_name_plural = 'メール'
-        # 同一アカウント・同一フォルダ内でUIDは一意
-        unique_together = [['account', 'uid', 'folder']]
-        ordering = ['-received_at']
-
-    def __str__(self):
-        return f'{self.subject} ({self.from_address})'
+        verbose_name = 'メールラベル紐付け'
+        verbose_name_plural = 'メールラベル紐付け'
+        unique_together = [['account', 'message_id', 'label']]

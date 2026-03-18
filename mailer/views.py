@@ -1,10 +1,11 @@
-"""メールクライアントのページ表示と JSON API。"""
+"""メールクライアントのページ表示と JSON API。
+メール本文はIMAPサーバーから直接取得する（DBキャッシュなし）。
+"""
 import json
 import logging
 from threading import Thread
 
 from django.conf import settings
-
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
@@ -12,27 +13,17 @@ from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from .imap_client import ImapConnectionError, MailClient, SmtpConnectionError, test_connection
-from .models import Email, Label, MailAccount, MailFolder
+from .models import EmailLabel, Label, MailAccount, MailFolder
 from .sync import sync_account
 
 logger = logging.getLogger(__name__)
 
 ACCOUNT_FIELDS = [
-    'email_address',
-    'password',
-    'imap_host',
-    'imap_port',
-    'smtp_host',
-    'smtp_port',
-    'username',
+    'email_address', 'password', 'imap_host', 'imap_port',
+    'smtp_host', 'smtp_port', 'username',
 ]
 CONNECTION_TEST_FIELDS = [
-    'imap_host',
-    'imap_port',
-    'smtp_host',
-    'smtp_port',
-    'username',
-    'password',
+    'imap_host', 'imap_port', 'smtp_host', 'smtp_port', 'username', 'password',
 ]
 
 
@@ -41,7 +32,7 @@ CONNECTION_TEST_FIELDS = [
 # =============================
 
 class MailIndexView(LoginRequiredMixin, TemplateView):
-    """メインページ: アカウントがあれば受信トレイ、なければセットアップへ"""
+    """メインページ"""
     template_name = 'mailer/index.html'
 
     def get(self, request, *args, **kwargs):
@@ -49,6 +40,29 @@ class MailIndexView(LoginRequiredMixin, TemplateView):
         if not has_account:
             return redirect('mailer:setup')
         return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        accounts = list(MailAccount.objects.filter(user=self.request.user, is_active=True))
+        ctx['accounts_json'] = json.dumps([_serialize_account(a) for a in accounts])
+
+        initial_account = accounts[0] if accounts else None
+        if initial_account:
+            folders = list(MailFolder.objects.filter(account=initial_account))
+            ctx['folders_json'] = json.dumps([_serialize_folder(f) for f in folders])
+            inbox = next((f for f in folders if f.folder_type == 'inbox'), folders[0] if folders else None)
+            ctx['initial_folder_id'] = inbox.id if inbox else 0
+        else:
+            ctx['folders_json'] = '[]'
+            ctx['initial_folder_id'] = 0
+
+        # メールはIMAP直接取得 — サーバー側では渡さない（JS側でAPIを呼ぶ）
+        ctx['emails_json'] = '[]'
+        ctx['emails_total'] = 0
+
+        labels = list(Label.objects.filter(user=self.request.user))
+        ctx['labels_json'] = json.dumps([_serialize_label(l) for l in labels])
+        return ctx
 
 
 class MailSetupView(LoginRequiredMixin, TemplateView):
@@ -73,7 +87,6 @@ def _json_error(message: str, status: int = 400) -> JsonResponse:
 
 
 def _parse_json_body(request) -> dict | JsonResponse:
-    """JSON ボディを辞書として返す。失敗時はエラーレスポンスを返す。"""
     try:
         return json.loads(request.body)
     except json.JSONDecodeError:
@@ -81,14 +94,12 @@ def _parse_json_body(request) -> dict | JsonResponse:
 
 
 def _require_method(request, method: str) -> JsonResponse | None:
-    """HTTP メソッドを検証する。"""
     if request.method != method:
         return _json_error(f'{method}メソッドのみ受け付けます', 405)
     return None
 
 
 def _validate_required_fields(data: dict, fields: list[str]) -> JsonResponse | None:
-    """必須フィールドの存在を検証する。"""
     for field in fields:
         if not data.get(field):
             return _json_error(f'{field} は必須です')
@@ -96,29 +107,16 @@ def _validate_required_fields(data: dict, fields: list[str]) -> JsonResponse | N
 
 
 def _get_account_or_403(account_id, user) -> MailAccount | JsonResponse:
-    """アカウントを取得し、所有者チェックを行う。"""
     try:
         account = MailAccount.objects.get(id=account_id)
     except MailAccount.DoesNotExist:
-        return _json_error('アカウントが見つかりません', status=404)
+        return _json_error('アカウントが見つかりません', 404)
     if account.user != user:
-        return _json_error('アクセス権限がありません', status=403)
+        return _json_error('アクセス権限がありません', 403)
     return account
 
 
-def _get_email_or_403(email_id, user) -> Email | JsonResponse:
-    """メールを取得し、所有者チェックを行う。"""
-    try:
-        email = Email.objects.select_related('account', 'folder').get(id=email_id)
-    except Email.DoesNotExist:
-        return _json_error('メールが見つかりません', 404)
-    if email.account.user != user:
-        return _json_error('アクセス権限がありません', 403)
-    return email
-
-
 def _get_folder_or_403(folder_id, user) -> MailFolder | JsonResponse:
-    """フォルダを取得し、所有者チェックを行う。"""
     try:
         folder = MailFolder.objects.select_related('account').get(id=folder_id)
     except MailFolder.DoesNotExist:
@@ -155,47 +153,25 @@ def _serialize_label(label: Label) -> dict:
     return {'id': label.id, 'name': label.name, 'color': label.color}
 
 
-def _serialize_email_summary(email: Email) -> dict:
+def _serialize_imap_email(email_data: dict, folder_id: int, labels: list | None = None) -> dict:
+    """IMAPから取得したメールデータをJSONシリアライズ用に変換する"""
     return {
-        'id': email.id,
-        'uid': email.uid,
-        'subject': email.subject,
-        'from_address': email.from_address,
-        'to_addresses': email.to_addresses,
-        'is_read': email.is_read,
-        'is_starred': email.is_starred,
-        'has_attachments': email.has_attachments,
-        'received_at': email.received_at.isoformat() if email.received_at else None,
-        'preview': email.body_text[:120] if email.body_text else '',
-        'labels': [_serialize_label(l) for l in email.labels.all()],
+        'uid': email_data['uid'],
+        'folder_id': folder_id,
+        'message_id': email_data.get('message_id', ''),
+        'subject': email_data.get('subject', ''),
+        'from_address': email_data.get('from_address', ''),
+        'to_addresses': email_data.get('to_addresses', []),
+        'is_read': email_data.get('is_read', False),
+        'is_starred': email_data.get('is_starred', False),
+        'has_attachments': email_data.get('has_attachments', False),
+        'received_at': email_data.get('received_at'),
+        'preview': '',
+        'labels': labels or [],
     }
-
-
-def _serialize_email_detail(email: Email) -> dict:
-    return {
-        'id': email.id,
-        'subject': email.subject,
-        'from_address': email.from_address,
-        'to_addresses': email.to_addresses,
-        'cc_addresses': email.cc_addresses,
-        'body_text': email.body_text,
-        'body_html': email.body_html,
-        'is_read': email.is_read,
-        'is_starred': email.is_starred,
-        'has_attachments': email.has_attachments,
-        'received_at': email.received_at.isoformat() if email.received_at else None,
-        'labels': [_serialize_label(l) for l in email.labels.all()],
-    }
-
-
-def _refresh_unread_count(folder: MailFolder) -> None:
-    folder.unread_count = Email.objects.filter(folder=folder, is_read=False).count()
-    folder.save(update_fields=['unread_count'])
 
 
 def _start_account_sync(account_id: int, log_label: str) -> None:
-    """同期処理をバックグラウンドで起動する。"""
-
     def _run_sync(target_account_id: int) -> None:
         try:
             sync_account(target_account_id)
@@ -205,25 +181,37 @@ def _start_account_sync(account_id: int, log_label: str) -> None:
     Thread(target=_run_sync, args=(account_id,), daemon=True).start()
 
 
-def _load_email_body_if_needed(email: Email) -> None:
-    """本文が未保存なら IMAP から取得して保存する。"""
-    if email.body_text or email.body_html or not email.folder:
-        return
+# =============================
+# セットアップ登録（フォームPOST）
+# =============================
 
-    try:
-        client = MailClient(email.account)
-        client.connect_imap()
-        body_data = client.fetch_email_body(email.uid, email.folder.remote_name)
-        client.disconnect_imap()
-    except ImapConnectionError as exc:
-        logger.warning('本文取得失敗 email_id=%s: %s', email.id, exc)
-        return
+@login_required
+def setup_register(request):
+    if request.method != 'POST':
+        return redirect('mailer:setup')
 
-    email.body_text = body_data['body_text']
-    email.body_html = body_data['body_html']
-    email.has_attachments = body_data['has_attachments']
-    email.cc_addresses = body_data['cc_addresses']
-    email.save(update_fields=['body_text', 'body_html', 'has_attachments', 'cc_addresses'])
+    data = request.POST
+    required = ['email_address', 'password', 'imap_host', 'imap_port', 'smtp_host', 'smtp_port']
+    for field in required:
+        if not data.get(field):
+            return redirect('mailer:setup')
+
+    account = MailAccount(
+        user=request.user,
+        email_address=data['email_address'],
+        display_name=data.get('display_name') or data['email_address'],
+        imap_host=data['imap_host'],
+        imap_port=int(data['imap_port']),
+        smtp_host=data['smtp_host'],
+        smtp_port=int(data['smtp_port']),
+        username=data.get('username') or data['email_address'],
+        use_ssl=data.get('ssl') == 'ssl',
+        ssl_verify='ssl_verify' in data,
+    )
+    account.set_password(data['password'])
+    account.save()
+    _start_account_sync(account.id, 'バックグラウンド同期エラー')
+    return redirect('mailer:index')
 
 
 # =============================
@@ -232,10 +220,6 @@ def _load_email_body_if_needed(email: Email) -> None:
 
 @login_required
 def api_test_connection(request):
-    """
-    POST /mail/api/test-connection/
-    IMAP/SMTP接続テストを実行して各ステップの結果を返す
-    """
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
@@ -272,8 +256,7 @@ def api_accounts(request):
     """GET: アカウント一覧 / POST: アカウント新規登録"""
     if request.method == 'GET':
         accounts = MailAccount.objects.filter(user=request.user, is_active=True)
-        data = [_serialize_account(account) for account in accounts]
-        return _json_ok({'accounts': data})
+        return _json_ok({'accounts': [_serialize_account(a) for a in accounts]})
 
     if request.method != 'POST':
         return _json_error('許可されていないメソッドです', 405)
@@ -322,7 +305,7 @@ def api_account_detail(request, account_id):
 
 @login_required
 def api_account_sync(request, account_id):
-    """POST: 手動同期"""
+    """POST: 手動同期（フォルダ一覧と未読数）"""
     account = _get_account_or_403(account_id, request.user)
     if isinstance(account, JsonResponse):
         return account
@@ -333,6 +316,28 @@ def api_account_sync(request, account_id):
 
     _start_account_sync(account.id, '手動同期エラー')
     return _json_ok({'message': '同期を開始しました'})
+
+
+@login_required
+def api_folder_sync(request, folder_id):
+    """POST: フォルダ未読数を同期"""
+    method_error = _require_method(request, 'POST')
+    if method_error:
+        return method_error
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    def _run():
+        try:
+            from .sync import sync_folder
+            sync_folder(folder.account.id, folder.id)
+        except Exception as exc:
+            logger.error('フォルダ同期エラー folder_id=%s: %s', folder_id, exc)
+
+    Thread(target=_run, daemon=True).start()
+    return _json_ok({'message': 'フォルダ同期を開始しました'})
 
 
 # =============================
@@ -351,128 +356,289 @@ def api_folders(request):
         return account
 
     folders = MailFolder.objects.filter(account=account)
-    data = [_serialize_folder(folder) for folder in folders]
-    return _json_ok({'folders': data})
+    return _json_ok({'folders': [_serialize_folder(f) for f in folders]})
 
 
 # =============================
-# メールAPI
+# メールAPI（IMAP直接アクセス）
 # =============================
 
 @login_required
+def api_folder_empty(request, folder_id):
+    """POST: フォルダ内のメールをすべて完全削除"""
+    method_error = _require_method(request, 'POST')
+    if method_error:
+        return method_error
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        client._imap.select_folder(folder.remote_name)
+        uids = client._imap.search(['ALL'])
+        if uids:
+            client._imap.add_flags(uids, [b'\\Deleted'])
+            client._imap.expunge()
+        client.disconnect_imap()
+    except Exception as exc:
+        logger.warning('IMAP一括削除失敗 folder_id=%s: %s', folder_id, exc)
+        return _json_error(f'削除失敗: {exc}')
+
+    folder.unread_count = 0
+    folder.save(update_fields=['unread_count'])
+    return _json_ok()
+
+
+@login_required
 def api_emails(request):
-    """GET: メール一覧（?folder_id= or ?label_id=, ?page=）"""
-    label_id = request.GET.get('label_id')
+    """GET: メール一覧（?folder_id=, ?page=）"""
     folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id パラメータが必要です')
 
     page = max(1, int(request.GET.get('page', 1)))
     per_page = 50
-    offset = (page - 1) * per_page
 
-    if label_id:
-        try:
-            label = Label.objects.get(id=label_id, user=request.user)
-        except Label.DoesNotExist:
-            return _json_error('ラベルが見つかりません', 404)
-        qs = Email.objects.filter(labels=label, account__user=request.user)
-    elif folder_id:
-        folder = _get_folder_or_403(folder_id, request.user)
-        if isinstance(folder, JsonResponse):
-            return folder
-        qs = Email.objects.filter(folder=folder)
-    else:
-        return _json_error('folder_id または label_id パラメータが必要です')
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
 
-    qs = qs.order_by('-received_at').prefetch_related('labels')
-    total = qs.count()
-    emails = qs[offset:offset + per_page]
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        all_uids = sorted(client.get_folder_uids(folder.remote_name), reverse=True)
+        total = len(all_uids)
 
-    data = [_serialize_email_summary(email) for email in emails]
+        offset = (page - 1) * per_page
+        page_uids = all_uids[offset:offset + per_page]
+        emails_data = client.fetch_emails_by_uids(folder.remote_name, page_uids)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    # ラベル情報を付加
+    message_ids = [e.get('message_id') for e in emails_data if e.get('message_id')]
+    labels_by_msgid: dict[str, list] = {}
+    if message_ids:
+        for el in EmailLabel.objects.filter(
+            account=folder.account, message_id__in=message_ids
+        ).select_related('label'):
+            labels_by_msgid.setdefault(el.message_id, []).append(_serialize_label(el.label))
+
+    data = [
+        _serialize_imap_email(e, folder.id, labels_by_msgid.get(e.get('message_id', ''), []))
+        for e in emails_data
+    ]
     return _json_ok({'emails': data, 'total': total, 'page': page, 'per_page': per_page})
 
 
 @login_required
-def api_email_detail(request, email_id):
-    """GET: メール詳細（本文含む） / DELETE: 削除"""
-    email = _get_email_or_403(email_id, request.user)
-    if isinstance(email, JsonResponse):
-        return email
+def api_email_detail(request, uid):
+    """GET: メール詳細（本文含む） / DELETE: スマート削除"""
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id クエリパラメータが必要です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
 
     if request.method == 'GET':
-        _load_email_body_if_needed(email)
-        return _json_ok({'email': _serialize_email_detail(email)})
+        try:
+            client = MailClient(folder.account)
+            client.connect_imap()
+            summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
+            if not summary_list:
+                client.disconnect_imap()
+                return _json_error('メールが見つかりません', 404)
+            summary = summary_list[0]
+            body_data = client.fetch_email_body(uid, folder.remote_name)
+            was_unread = not summary.get('is_read', True)
+            if was_unread:
+                client.mark_as_read(uid, folder.remote_name)
+            client.disconnect_imap()
+        except ImapConnectionError as e:
+            return _json_error(str(e))
+
+        if was_unread:
+            folder.unread_count = max(0, folder.unread_count - 1)
+            folder.save(update_fields=['unread_count'])
+
+        message_id = summary.get('message_id', '')
+        labels = []
+        if message_id:
+            labels = [
+                _serialize_label(el.label)
+                for el in EmailLabel.objects.filter(
+                    account=folder.account, message_id=message_id
+                ).select_related('label')
+            ]
+
+        email_data = {**summary, **body_data, 'folder_id': folder.id, 'labels': labels}
+        return _json_ok({'email': email_data})
 
     if request.method == 'DELETE':
-        if email.folder:
-            try:
-                client = MailClient(email.account)
-                client.connect_imap()
-                client.delete_email(email.uid, email.folder.remote_name)
+        is_trash = folder.folder_type == 'trash'
+        try:
+            client = MailClient(folder.account)
+            client.connect_imap()
+            if is_trash:
+                client.delete_email(uid, folder.remote_name)
                 client.disconnect_imap()
-            except ImapConnectionError as exc:
-                logger.warning('IMAP削除失敗 email_id=%s: %s', email_id, exc)
-        email.delete()
-        return _json_ok()
+                return _json_ok({'action': 'deleted'})
+            else:
+                trash_folder = MailFolder.objects.filter(
+                    account=folder.account, folder_type='trash'
+                ).first()
+                if trash_folder:
+                    client.move_email(uid, folder.remote_name, trash_folder.remote_name)
+                    client.disconnect_imap()
+                    return _json_ok({'action': 'trashed'})
+                else:
+                    client.delete_email(uid, folder.remote_name)
+                    client.disconnect_imap()
+                    return _json_ok({'action': 'deleted'})
+        except ImapConnectionError as e:
+            return _json_error(str(e))
 
     return _json_error('許可されていないメソッドです', 405)
 
 
 @login_required
-def api_email_read(request, email_id):
+def api_attachment(request, uid, index):
+    """GET: 添付ファイルをダウンロードする (?folder_id=X)"""
+    from django.http import HttpResponse
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id は必須です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        att = client.fetch_attachment(uid, folder.remote_name, index)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    import urllib.parse
+    filename = att['filename']
+    encoded = urllib.parse.quote(filename)
+    response = HttpResponse(att['data'], content_type=att.get('content_type', 'application/octet-stream'))
+    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded}"
+    return response
+
+
+@login_required
+def api_email_read(request, uid):
     """POST: 既読にする"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
 
-    email = _get_email_or_403(email_id, request.user)
-    if isinstance(email, JsonResponse):
-        return email
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id クエリパラメータが必要です')
 
-    email.is_read = True
-    email.save(update_fields=['is_read'])
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
 
-    # IMAPにも反映
-    if email.folder:
-        try:
-            client = MailClient(email.account)
-            client.connect_imap()
-            client.mark_as_read(email.uid, email.folder.remote_name)
-            client.disconnect_imap()
-        except ImapConnectionError:
-            pass
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        client.mark_as_read(uid, folder.remote_name)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        logger.warning('既読設定失敗 uid=%s: %s', uid, e)
 
-    if email.folder:
-        _refresh_unread_count(email.folder)
-
+    folder.unread_count = max(0, folder.unread_count - 1)
+    folder.save(update_fields=['unread_count'])
     return _json_ok()
 
 
 @login_required
-def api_email_star(request, email_id):
+def api_email_unread(request, uid):
+    """POST: 未読にする"""
+    method_error = _require_method(request, 'POST')
+    if method_error:
+        return method_error
+
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id クエリパラメータが必要です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        client.mark_as_unread(uid, folder.remote_name)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        logger.warning('未読設定失敗 uid=%s: %s', uid, e)
+
+    folder.unread_count = folder.unread_count + 1
+    folder.save(update_fields=['unread_count'])
+    return _json_ok()
+
+
+@login_required
+def api_email_star(request, uid):
     """POST: スター切り替え"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
 
-    email = _get_email_or_403(email_id, request.user)
-    if isinstance(email, JsonResponse):
-        return email
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id クエリパラメータが必要です')
 
-    email.is_starred = not email.is_starred
-    email.save(update_fields=['is_starred'])
-    return _json_ok({'is_starred': email.is_starred})
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        client._imap.select_folder(folder.remote_name)
+        fetch_data = client._imap.fetch([uid], ['FLAGS'])
+        flags = fetch_data.get(uid, {}).get(b'FLAGS', [])
+        if b'\\Flagged' in flags:
+            client._imap.remove_flags([uid], [b'\\Flagged'])
+            is_starred = False
+        else:
+            client._imap.add_flags([uid], [b'\\Flagged'])
+            is_starred = True
+        client.disconnect_imap()
+    except Exception as e:
+        return _json_error(f'スター操作失敗: {e}')
+
+    return _json_ok({'is_starred': is_starred})
 
 
 @login_required
-def api_email_move(request, email_id):
-    """POST: フォルダ移動（body: {folder_id}）"""
+def api_email_move(request, uid):
+    """POST: フォルダ移動（body: {folder_id: 移動先}、?folder_id=移動元）"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
 
-    email = _get_email_or_403(email_id, request.user)
-    if isinstance(email, JsonResponse):
-        return email
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id クエリパラメータが必要です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
 
     body = _parse_json_body(request)
     if isinstance(body, JsonResponse):
@@ -480,25 +646,21 @@ def api_email_move(request, email_id):
 
     target_folder_id = body.get('folder_id')
     if not target_folder_id:
-        return _json_error('folder_id は必須です')
+        return _json_error('folder_id（移動先）は必須です')
 
     try:
-        target_folder = MailFolder.objects.get(id=target_folder_id, account=email.account)
+        target_folder = MailFolder.objects.get(id=target_folder_id, account=folder.account)
     except MailFolder.DoesNotExist:
         return _json_error('移動先フォルダが見つかりません', 404)
 
-    # IMAP上でも移動
-    if email.folder:
-        try:
-            client = MailClient(email.account)
-            client.connect_imap()
-            client.move_email(email.uid, email.folder.remote_name, target_folder.remote_name)
-            client.disconnect_imap()
-        except ImapConnectionError as exc:
-            logger.warning('IMAP移動失敗 email_id=%s: %s', email_id, exc)
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        client.move_email(uid, folder.remote_name, target_folder.remote_name)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
 
-    email.folder = target_folder
-    email.save(update_fields=['folder'])
     return _json_ok()
 
 
@@ -547,26 +709,92 @@ def api_label_detail(request, label_id):
 
 
 @login_required
-def api_email_label(request, email_id, label_id):
-    """POST: ラベル付与 / DELETE: ラベル外す"""
-    email = _get_email_or_403(email_id, request.user)
-    if isinstance(email, JsonResponse):
-        return email
+def api_email_label(request, uid, label_id):
+    """POST: ラベル付与 / DELETE: ラベル外す（?folder_id= 必須）"""
+    folder_id = request.GET.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id クエリパラメータが必要です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
 
     try:
         label = Label.objects.get(id=label_id, user=request.user)
     except Label.DoesNotExist:
         return _json_error('ラベルが見つかりません', 404)
 
+    # メッセージIDをIMAPから取得（EmailLabelのキーとして使用）
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    if not summary_list:
+        return _json_error('メールが見つかりません', 404)
+
+    message_id = summary_list[0].get('message_id', '') or f'uid-{uid}-folder-{folder.id}'
+
     if request.method == 'POST':
-        email.labels.add(label)
+        EmailLabel.objects.get_or_create(
+            account=folder.account, message_id=message_id, label=label
+        )
         return _json_ok()
 
     if request.method == 'DELETE':
-        email.labels.remove(label)
+        EmailLabel.objects.filter(
+            account=folder.account, message_id=message_id, label=label
+        ).delete()
         return _json_ok()
 
     return _json_error('許可されていないメソッドです', 405)
+
+
+# =============================
+# 検索API
+# =============================
+
+@login_required
+def api_search(request):
+    """GET: メール検索（IMAP SEARCH）?folder_id=X&q=keyword"""
+    folder_id = request.GET.get('folder_id')
+    query = request.GET.get('q', '').strip()
+    if not folder_id:
+        return _json_error('folder_id は必須です')
+    if not query:
+        return _json_error('検索クエリは必須です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        uids = client.search_emails(folder.remote_name, query)
+        if not uids:
+            client.disconnect_imap()
+            return _json_ok({'emails': [], 'total': 0})
+        emails_raw = client.fetch_emails_by_uids(folder.remote_name, uids[:50])
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    message_ids = [e.get('message_id') for e in emails_raw if e.get('message_id')]
+    labels_map = {}
+    if message_ids:
+        for el in EmailLabel.objects.filter(
+            account=folder.account, message_id__in=message_ids
+        ).select_related('label'):
+            labels_map.setdefault(el.message_id, []).append({
+                'id': el.label.id, 'name': el.label.name, 'color': el.label.color,
+            })
+
+    result = [_serialize_imap_email(e, folder.id, labels_map.get(e.get('message_id'), [])) for e in emails_raw]
+    return _json_ok({'emails': result, 'total': len(result)})
 
 
 # =============================
@@ -580,86 +808,185 @@ def api_send(request):
     if method_error:
         return method_error
 
-    body = _parse_json_body(request)
-    if isinstance(body, JsonResponse):
-        return body
+    # FormDataとJSONの両方に対応
+    ct = request.content_type or ''
+    if 'multipart' in ct:
+        account_id = request.POST.get('account_id')
+        to_raw = request.POST.get('to', '')
+        cc_raw = request.POST.get('cc', '')
+        bcc_raw = request.POST.get('bcc', '')
+        subject = request.POST.get('subject', '')
+        body_text = request.POST.get('body', '')
+        body_html = request.POST.get('body_html', '')
+        to = [s.strip() for s in to_raw.split(',') if s.strip()]
+        cc = [s.strip() for s in cc_raw.split(',') if s.strip()]
+        bcc = [s.strip() for s in bcc_raw.split(',') if s.strip()]
+        attachments = [
+            {'filename': f.name, 'content_type': f.content_type or 'application/octet-stream', 'data': f.read()}
+            for f in request.FILES.getlist('attachments')
+        ]
+    else:
+        data = _parse_json_body(request)
+        if isinstance(data, JsonResponse):
+            return data
+        account_id = data.get('account_id')
+        to = data.get('to', [])
+        cc = data.get('cc', [])
+        bcc = data.get('bcc', [])
+        subject = data.get('subject', '')
+        body_text = data.get('body', '')
+        body_html = data.get('body_html', '')
+        attachments = []
 
-    account_id = body.get('account_id')
     if not account_id:
         return _json_error('account_id は必須です')
+    if not to:
+        return _json_error('宛先（to）は必須です')
 
     account = _get_account_or_403(account_id, request.user)
     if isinstance(account, JsonResponse):
         return account
 
-    to = body.get('to', [])
-    subject = body.get('subject', '')
-    text_body = body.get('body', '')
-    html_body = body.get('body_html', '')
-    cc = body.get('cc', [])
-
-    if not to:
-        return _json_error('宛先（to）は必須です')
+    sent_folder = MailFolder.objects.filter(account=account, folder_type='sent').first()
+    save_to_sent = sent_folder.remote_name if sent_folder else None
 
     try:
         client = MailClient(account)
-        client.send_email(to=to, subject=subject, body=text_body, body_html=html_body, cc=cc)
+        client.send_email(
+            to=to,
+            subject=subject,
+            body=body_text,
+            body_html=body_html,
+            cc=cc,
+            bcc=bcc,
+            attachments=attachments or None,
+            save_to_sent=save_to_sent,
+        )
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
 
 
 @login_required
-def api_reply(request, email_id):
-    """POST: 返信"""
+def api_reply(request, uid):
+    """POST: 返信（body: {folder_id, body}）"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
 
-    original = _get_email_or_403(email_id, request.user)
-    if isinstance(original, JsonResponse):
-        return original
+    ct = request.content_type or ''
+    if 'multipart' in ct:
+        folder_id = request.POST.get('folder_id')
+        text_body = request.POST.get('body', '')
+        attachments = [
+            {'filename': f.name, 'content_type': f.content_type or 'application/octet-stream', 'data': f.read()}
+            for f in request.FILES.getlist('attachments')
+        ]
+    else:
+        data = _parse_json_body(request)
+        if isinstance(data, JsonResponse):
+            return data
+        folder_id = data.get('folder_id')
+        text_body = data.get('body', '')
+        attachments = []
 
-    body = _parse_json_body(request)
-    if isinstance(body, JsonResponse):
-        return body
+    if not folder_id:
+        return _json_error('folder_id は必須です')
 
-    text_body = body.get('body', '')
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
     if not text_body:
         return _json_error('本文は必須です')
 
+    # IMAPから返信元メール情報を取得
     try:
-        client = MailClient(original.account)
-        client.reply_email(original=original, body=text_body)
+        client = MailClient(folder.account)
+        client.connect_imap()
+        summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
+        if not summary_list:
+            client.disconnect_imap()
+            return _json_error('返信元メールが見つかりません', 404)
+        original_data = summary_list[0]
+        body_data = client.fetch_email_body(uid, folder.remote_name)
+        client.disconnect_imap()
+        original_data['body_text'] = body_data.get('body_text', '')
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    sent_folder = MailFolder.objects.filter(account=folder.account, folder_type='sent').first()
+    save_to_sent = sent_folder.remote_name if sent_folder else None
+
+    try:
+        client.reply_email(original_data=original_data, body=text_body, attachments=attachments or None, save_to_sent=save_to_sent)
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
 
 
 @login_required
-def api_forward(request, email_id):
-    """POST: 転送"""
+def api_forward(request, uid):
+    """POST: 転送（body: {folder_id, to, body}）"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
 
-    original = _get_email_or_403(email_id, request.user)
-    if isinstance(original, JsonResponse):
-        return original
+    ct = request.content_type or ''
+    if 'multipart' in ct:
+        folder_id = request.POST.get('folder_id')
+        to_raw = request.POST.get('to', '')
+        to = [s.strip() for s in to_raw.split(',') if s.strip()]
+        fwd_body = request.POST.get('body', '')
+        attachments = [
+            {'filename': f.name, 'content_type': f.content_type or 'application/octet-stream', 'data': f.read()}
+            for f in request.FILES.getlist('attachments')
+        ]
+    else:
+        data = _parse_json_body(request)
+        if isinstance(data, JsonResponse):
+            return data
+        folder_id = data.get('folder_id')
+        to = data.get('to', [])
+        fwd_body = data.get('body', '')
+        attachments = []
 
-    body = _parse_json_body(request)
-    if isinstance(body, JsonResponse):
-        return body
+    if not folder_id:
+        return _json_error('folder_id は必須です')
 
-    to = body.get('to', [])
-    text_body = body.get('body', '')
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
 
     if not to:
         return _json_error('宛先（to）は必須です')
 
+    # IMAPから転送元メール情報を取得
     try:
-        client = MailClient(original.account)
-        client.forward_email(original=original, to=to, body=text_body)
+        client = MailClient(folder.account)
+        client.connect_imap()
+        summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
+        if not summary_list:
+            client.disconnect_imap()
+            return _json_error('転送元メールが見つかりません', 404)
+        original_data = summary_list[0]
+        body_data = client.fetch_email_body(uid, folder.remote_name)
+        client.disconnect_imap()
+        original_data['body_text'] = body_data.get('body_text', '')
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    sent_folder = MailFolder.objects.filter(account=folder.account, folder_type='sent').first()
+    save_to_sent = sent_folder.remote_name if sent_folder else None
+
+    try:
+        client.forward_email(
+            original_data=original_data,
+            to=to,
+            body=fwd_body,
+            attachments=attachments or None,
+            save_to_sent=save_to_sent,
+        )
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
@@ -673,34 +1000,56 @@ _AI_SYSTEM_PROMPT = """
 あなたはプロのビジネスメールアシスタントです。
 ユーザーから渡されたメールへの返信文を作成するのが役割です。
 
-## 行動ルール
+## 最重要ルール: 不明な情報は必ずユーザーに質問する
 
-### 情報が揃っている場合
+以下の情報がメールの文脈から確定できない場合は、**絶対に推測・でたらめ・プレースホルダーで埋めてはいけません**。
+必ず質問モードに切り替えてください。
+
+### 質問が必須になる情報の種類
+1. **承諾・拒否の意思** — 依頼・提案・招待に対してYES/NOを答える必要がある場合
+2. **日程・期日・時間** — 「いつ」「何時」「何日まで」など具体的な日時が必要な場合
+3. **金額・数量・条件** — 見積もり・価格・数量・契約条件など数字が必要な場合
+4. **担当者・送信者の名前・役職** — 誰が対応するか、誰の名前で送るかが不明な場合
+5. **理由・背景・経緯** — なぜそうするのか、何があったのかをユーザーしか知らない場合
+6. **対応方針・スタンス** — どういう立場・方向性で返信するかが不明な場合
+7. **具体的な内容・詳細** — 「詳細を教えてください」と言われているが内容が不明な場合
+8. **添付・別途送付するもの** — 何を送るかがユーザーにしか分からない場合
+
+### 質問モードの動作
+- 上記の情報が1つでも欠けていたら、返信文を生成せずに質問のみを返してください。
+- 以下のJSON形式**だけ**を返してください。前後に説明文を一切含めないでください。
+  {"questions": ["質問1", "質問2", "質問3"]}
+- 質問は具体的かつ簡潔に書いてください（「〇〇についてはどうしますか？」など）。
+- 質問は最大4つまでに絞ってください。
+
+### 返信文生成モードの動作（情報が全て揃っている場合のみ）
 - 返信文のみを出力してください。
-- 前置き・説明・「以下が返信文です」などの一切の補足は不要です。
-
-### 情報が不足している場合
-- 返信の核心に関わる情報（日程・金額・承認可否・担当者など）が不明なときのみ質問してください。
-- 以下のJSON形式のみを返してください。余計なテキストは一切不要です。
-  {"questions": ["質問1", "質問2"]}
-- 質問は最大3つまでに絞ってください。
-
-## 返信文を書くときの注意
+- 「以下が返信文です」などの前置き・補足は一切不要です。
 - 指定されたトーンと長さを厳守してください。
 - 含めたいポイントが指定されている場合は、必ず自然な形で本文に盛り込んでください。
-- 添付ファイルや画像がある場合は内容を読み取り、返信に活かしてください。
 - 挨拶・締めの言葉など、日本語ビジネスメールの慣習に従ってください。
 - 署名は含めないでください（ユーザーが別途追加します）。
+
+## 判断に迷ったら質問する
+少しでも「これはユーザーにしか分からないのでは？」と思ったら、質問してください。
+推測で返信文を作って送信されてしまうほうが、質問するよりはるかに問題です。
+
+## 【絶対厳守】既に回答された質問は絶対に再度聞かない
+プロンプトに「【追加情報（確認済み）】」セクションがある場合、そこにはユーザーが既に答えた内容が入っています。
+- その内容について同じ質問を再度してはいけません。
+- 全ての確認済み情報を返信文に反映させてください。
+- 確認済み情報が揃っていれば、それ以上質問せず必ず返信文を生成してください。
+- 「まだ情報が足りない」と感じても、確認済み情報で答えられる範囲で返信文を作成してください。
+
+## 【絶対厳守】「スキップ・不要」はそのまま省略して進む
+回答が「（スキップ・不要）」になっている質問は、ユーザーが「この情報は返信に不要」と判断したものです。
+- その項目について再度質問してはいけません。
+- その情報なしで返信文を作成してください。書けない場合は自然に省略または汎用的な表現で代替してください。
+- 空白・スキップ項目が多くても、質問せずに返信文を生成してください。
 """.strip()
 
 
-def _build_ai_user_prompt(
-    email_body: str,
-    tone: str,
-    length: str,
-    points: str = "",
-    extra_qa: str = "",
-) -> str:
+def _build_ai_user_prompt(email_body: str, tone: str, length: str, points: str = '', extra_qa: str = '') -> str:
     sections = [
         f"【元メール】\n{email_body}",
         f"【トーン】{tone}",
@@ -710,49 +1059,43 @@ def _build_ai_user_prompt(
         sections.append(f"【含めたいポイント】\n{points}")
     if extra_qa:
         sections.append(f"【追加情報（確認済み）】\n{extra_qa}")
+        sections.append("【重要指示】ユーザーは既に質問に回答しました。これ以上質問せず、必ず今すぐ返信文を生成してください。")
     return "\n\n".join(sections)
 
 
 @login_required
-def api_ai_reply(request, email_id):
-    """
-    POST /mail/api/emails/<email_id>/ai-reply/
-    AI によるメール返信文草案を生成する。
-
-    リクエストボディ（JSON）:
-      tone      : str  - 返信のトーン（例: "丁寧", "カジュアル"）
-      length    : str  - 返信の長さ（例: "短め", "普通", "長め"）
-      points    : str  - 含めたいポイント（任意）
-      extra_qa  : str  - 不足情報の質問と回答（2回目以降、任意）
-
-    レスポンス:
-      {"ok": true, "reply": "..."} 返信文が生成された場合
-      {"ok": true, "questions": [...]} 情報不足で質問が返された場合
-    """
+def api_ai_reply(request, uid):
+    """POST: AI返信文生成（body: {folder_id, tone, length, points, extra_qa}）"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
-
-    email = _get_email_or_403(email_id, request.user)
-    if isinstance(email, JsonResponse):
-        return email
-
-    _load_email_body_if_needed(email)
 
     body = _parse_json_body(request)
     if isinstance(body, JsonResponse):
         return body
 
-    tone = body.get('tone', '丁寧')
-    length = body.get('length', '普通')
-    points = body.get('points', '')
-    extra_qa = body.get('extra_qa', '')
+    folder_id = body.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id は必須です')
 
-    email_body = email.body_text or ''
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        body_data = client.fetch_email_body(uid, folder.remote_name)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    email_body = body_data.get('body_text', '')
     if not email_body:
         return _json_error('メール本文が取得できませんでした')
 
-    api_key = getattr(settings, 'OPENAI_API_KEY', None)
+    import os as _os
+    api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
     if not api_key:
         return _json_error('OPENAI_API_KEY が設定されていません', 500)
 
@@ -765,17 +1108,19 @@ def api_ai_reply(request, email_id):
             messages=[
                 {'role': 'system', 'content': _AI_SYSTEM_PROMPT},
                 {'role': 'user', 'content': _build_ai_user_prompt(
-                    email_body, tone, length, points, extra_qa
+                    email_body,
+                    body.get('tone', '丁寧'),
+                    body.get('length', '普通'),
+                    body.get('points', ''),
+                    body.get('extra_qa', ''),
                 )},
             ],
         )
     except Exception as exc:
-        logger.error('AI返信生成エラー email_id=%s: %s', email_id, exc)
+        logger.error('AI返信生成エラー uid=%s: %s', uid, exc)
         return _json_error(f'AI生成に失敗しました: {exc}', 500)
 
     content = response.choices[0].message.content.strip()
-
-    # モデルが質問JSONを返した場合
     try:
         parsed = json.loads(content)
         if isinstance(parsed, dict) and 'questions' in parsed:
@@ -784,3 +1129,97 @@ def api_ai_reply(request, email_id):
         pass
 
     return _json_ok({'reply': content})
+
+
+@login_required
+def api_ai_chat(request, uid):
+    """
+    POST /mail/api/emails/<uid>/ai-chat/
+    メール内容を文脈としてAIとマルチターンチャットする。
+
+    body: { folder_id, messages: [{role, content}, ...] }
+    response: { reply: "..." }
+    """
+    method_error = _require_method(request, 'POST')
+    if method_error:
+        return method_error
+
+    body = _parse_json_body(request)
+    if isinstance(body, JsonResponse):
+        return body
+
+    folder_id = body.get('folder_id')
+    if not folder_id:
+        return _json_error('folder_id は必須です')
+
+    folder = _get_folder_or_403(folder_id, request.user)
+    if isinstance(folder, JsonResponse):
+        return folder
+
+    messages = body.get('messages', [])
+    if not messages:
+        return _json_error('messages は必須です')
+
+    # メール内容を文脈として取得
+    try:
+        client = MailClient(folder.account)
+        client.connect_imap()
+        summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
+        body_data = client.fetch_email_body(uid, folder.remote_name)
+        client.disconnect_imap()
+    except ImapConnectionError as e:
+        return _json_error(str(e))
+
+    if not summary_list:
+        return _json_error('メールが見つかりません', 404)
+
+    summary = summary_list[0]
+    email_context = (
+        f"件名: {summary.get('subject', '')}\n"
+        f"差出人: {summary.get('from_address', '')}\n"
+        f"日時: {summary.get('received_at', '')}\n"
+        f"本文:\n{body_data.get('body_text', '') or '（本文なし）'}"
+    )
+
+    system_prompt = (
+        "あなたはメールアシスタントです。ユーザーが開いているメールの内容を把握しており、"
+        "メールに関する質問に答えたり、返信文を作成したりできます。\n\n"
+        "## 現在のメール\n"
+        f"{email_context}\n\n"
+        "## 会話のルール\n"
+        "- 返信文の作成を依頼されたとき、必要な情報が揃っていれば即座に返信文を出力してください。\n"
+        "- 必要な情報が不足している場合（承諾/拒否の意思、日程・期日、金額・条件、担当者名、理由・背景など）は、"
+        "返信文を作らずに質問してください。その際、メッセージの先頭に必ず「[QUESTION]」と付けてください。"
+        "1回に聞く質問は最大2〜3個までにしてください。\n"
+        "- ユーザーが質問に答えたら、その情報を使って返信文を作成してください。"
+        "一度答えた質問は絶対に再度聞かないでください。\n"
+        "- ユーザーが「スキップ」「不要」「わからない」と答えた項目はその情報なしで返信文を作成してください。\n"
+        "- 返信文以外の質問（要約、翻訳など）にも普通に答えてください。\n"
+        "- 署名は含めないでください（ユーザーが別途追加します）。\n"
+        "- 返信文を提示するときは「---」などで区切り、そのままコピーして使えるよう仕上げてください。"
+    )
+
+    import os as _os
+    api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
+    if not api_key:
+        return _json_error('OPENAI_API_KEY が設定されていません', 500)
+
+    try:
+        import openai
+        openai_client = openai.OpenAI(api_key=api_key)
+        response = openai_client.chat.completions.create(
+            model='gpt-4o-mini',
+            max_tokens=1000,
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                *[{'role': m['role'], 'content': m['content']} for m in messages],
+            ],
+        )
+    except Exception as exc:
+        logger.error('AIチャットエラー uid=%s: %s', uid, exc)
+        return _json_error(f'AI応答に失敗しました: {exc}', 500)
+
+    content = response.choices[0].message.content.strip()
+    if content.startswith('[QUESTION]'):
+        return _json_ok({'reply': content[len('[QUESTION]'):].strip(), 'type': 'question'})
+    return _json_ok({'reply': content, 'type': 'reply'})

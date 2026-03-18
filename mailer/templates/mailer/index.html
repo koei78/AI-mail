@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token }}">
 <title>Mail</title>
 <style>
 /* ===== リセット & 変数 ===== */
@@ -205,7 +206,92 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 @keyframes skel-anim{0%{background-position:200%}100%{background-position:-200%}}
 
 /* ===== 本文ペイン ===== */
-#body-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+#body-pane{flex:1;display:flex;flex-direction:row;overflow:hidden;background:#fff}
+
+/* ===== AIチャットパネル ===== */
+#ai-panel{
+  width:300px;flex-shrink:0;display:none;flex-direction:column;
+  border-right:1px solid var(--border);background:var(--sidebar-bg);
+}
+.ai-hdr{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 10px;border-bottom:1px solid var(--border);
+  background:#fff;flex-shrink:0;
+}
+.ai-hdr-title{font-size:.82rem;font-weight:700;flex:1;color:var(--text)}
+.ai-hdr svg{flex-shrink:0;color:var(--blue)}
+#ai-messages{
+  flex:1;overflow-y:auto;padding:10px 8px;
+  display:flex;flex-direction:column;gap:8px;
+}
+#ai-messages::-webkit-scrollbar{width:4px}
+#ai-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.ai-msg{
+  max-width:88%;padding:7px 10px;border-radius:10px;
+  font-size:.78rem;line-height:1.55;word-break:break-word;white-space:pre-wrap;
+}
+.ai-msg.user{
+  align-self:flex-end;background:var(--blue);color:#fff;
+  border-bottom-right-radius:3px;
+}
+.ai-msg.ai{
+  align-self:flex-start;background:#fff;color:var(--text);
+  border:1px solid var(--border);border-bottom-left-radius:3px;
+}
+.ai-msg.thinking{
+  align-self:flex-start;color:var(--text-light);font-style:italic;
+  background:transparent;border:none;font-size:.74rem;
+}
+.ai-msg.question{
+  background:#fff8e1;border:1px solid #f0c040;color:#7a5800;
+  align-self:flex-start;
+}
+.ai-msg.question::before{
+  content:'❓ 確認事項';display:block;font-size:.7rem;font-weight:700;
+  color:#b88a00;margin-bottom:4px;letter-spacing:.03em;
+}
+/* ===== 添付ファイル ===== */
+.attach-list{padding:8px 16px;border-top:1px solid var(--border);background:#fafafa;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
+.attach-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);font-size:.76rem;color:var(--text);cursor:pointer;text-decoration:none;transition:background .12s}
+.attach-chip:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.attach-chip svg{flex-shrink:0}
+.file-attach-wrap{padding:4px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.file-attach-label{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:#f0f4ff;border:1px solid var(--blue);border-radius:var(--radius);color:var(--blue);font-size:.75rem;cursor:pointer;white-space:nowrap}
+.file-attach-label:hover{background:var(--blue-light)}
+.file-names{font-size:.73rem;color:var(--text-light)}
+.ai-use-btn{
+  display:inline-block;margin-top:6px;padding:3px 10px;
+  background:var(--blue-bg);border:1px solid var(--blue);
+  border-radius:var(--radius);color:var(--blue);font-size:.72rem;
+  cursor:pointer;transition:background .12s;
+}
+.ai-use-btn:hover{background:var(--blue-light)}
+.ai-input-wrap{
+  padding:8px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:5px;flex-shrink:0;
+  background:#fff;
+}
+#ai-input{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 8px;font-size:.78rem;resize:none;outline:none;
+  font-family:inherit;transition:border-color .15s;min-height:54px;
+}
+#ai-input:focus{border-color:var(--blue)}
+.ai-input-footer{display:flex;gap:5px;justify-content:flex-end}
+.ai-send-btn{
+  padding:4px 12px;background:var(--blue);color:#fff;
+  border:none;border-radius:var(--radius);font-size:.76rem;
+  font-weight:600;cursor:pointer;transition:background .12s;
+}
+.ai-send-btn:hover{background:var(--blue-hover)}
+.ai-send-btn:disabled{opacity:.5;cursor:not-allowed}
+.ai-clear-btn{
+  padding:4px 8px;background:transparent;
+  border:1px solid var(--border);border-radius:var(--radius);
+  font-size:.76rem;color:var(--text-sub);cursor:pointer;
+  transition:background .12s;
+}
+.ai-clear-btn:hover{background:var(--hover)}
 
 /* 空状態 */
 #empty-state{
@@ -393,6 +479,87 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 /* ===== スクロールバー全体 ===== */
 #sidebar::-webkit-scrollbar{width:4px}
 #sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ===== AI返信提案モーダル ===== */
+#asp-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.35);
+  z-index:400;display:none;align-items:center;justify-content:center;
+}
+#asp-overlay.open{display:flex}
+#asp-panel{
+  background:#fff;border-radius:10px;box-shadow:var(--shadow);
+  width:540px;max-width:94vw;max-height:88vh;
+  display:flex;flex-direction:column;animation:modal-in .15s ease;
+}
+@keyframes modal-in{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+.asp-hdr{
+  display:flex;align-items:center;gap:8px;
+  padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.asp-hdr-icon{font-size:1.1rem}
+.asp-hdr-title{font-size:.92rem;font-weight:700;flex:1;color:var(--text)}
+.asp-close{background:none;border:none;cursor:pointer;font-size:1.1rem;color:var(--text-sub);padding:0 4px;line-height:1}
+.asp-options{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:#fafafa;
+}
+.asp-options label{font-size:.74rem;color:var(--text-sub);font-weight:600}
+.asp-options select{
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:4px 8px;font-size:.78rem;background:#fff;outline:none;cursor:pointer;
+}
+.asp-gen-btn{
+  padding:5px 14px;background:var(--blue);color:#fff;
+  border:none;border-radius:var(--radius);font-size:.78rem;font-weight:600;
+  cursor:pointer;transition:background .12s;margin-left:auto;
+}
+.asp-gen-btn:hover{background:var(--blue-hover)}
+.asp-gen-btn:disabled{opacity:.5;cursor:not-allowed}
+.asp-body{flex:1;overflow-y:auto;padding:14px 16px;min-height:120px}
+#asp-loading{
+  display:flex;align-items:center;gap:10px;
+  color:var(--text-sub);font-size:.85rem;
+}
+.asp-spinner{
+  width:18px;height:18px;border:2px solid var(--border);
+  border-top-color:var(--blue);border-radius:50%;
+  animation:spin .8s linear infinite;flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.asp-q-title{font-size:.82rem;font-weight:600;color:var(--text);margin-bottom:10px}
+.asp-q-item{margin-bottom:12px}
+.asp-q-label{font-size:.78rem;color:var(--text-sub);margin-bottom:4px;display:block;font-weight:600}
+.asp-q-input{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 9px;font-size:.82rem;outline:none;font-family:inherit;
+  transition:border-color .15s;
+}
+.asp-q-input:focus{border-color:var(--blue)}
+.asp-reply-area{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 12px;font-size:.82rem;line-height:1.65;
+  outline:none;resize:vertical;min-height:160px;font-family:inherit;
+  transition:border-color .15s;
+}
+.asp-reply-area:focus{border-color:var(--blue)}
+.asp-footer{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px 14px;border-top:1px solid var(--border);flex-shrink:0;
+}
+.asp-use-btn{
+  padding:6px 18px;background:var(--blue);color:#fff;
+  border:none;border-radius:var(--radius);font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:background .12s;
+}
+.asp-use-btn:hover{background:var(--blue-hover)}
+.asp-regen-btn,.asp-answer-btn{
+  padding:6px 14px;background:transparent;border:1px solid var(--border);
+  border-radius:var(--radius);font-size:.82rem;cursor:pointer;
+  color:var(--text-sub);transition:background .12s;
+}
+.asp-regen-btn:hover,.asp-answer-btn:hover{background:var(--hover)}
+.asp-answer-btn{color:var(--blue);border-color:var(--blue)}
+.asp-answer-btn:hover{background:var(--blue-bg)}
 </style>
 </head>
 <body>
@@ -486,11 +653,25 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
       <input type="text" id="c-cc" placeholder="CC（省略可）">
     </div>
     <div class="cp-field">
+      <label>BCC</label>
+      <input type="text" id="c-bcc" placeholder="BCC（省略可）">
+    </div>
+    <div class="cp-field">
       <label>件名</label>
       <input type="text" id="c-subject" placeholder="件名">
     </div>
     <div class="cp-body-wrap">
       <textarea class="cp-body" id="c-body" placeholder="本文を入力…"></textarea>
+    </div>
+    <div style="padding:6px 16px 10px">
+      <div class="file-attach-wrap">
+        <label class="file-attach-label" for="c-files">
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          ファイルを添付
+        </label>
+        <input type="file" id="c-files" multiple style="display:none">
+        <span class="file-names" id="c-file-names"></span>
+      </div>
     </div>
   </div>
 
@@ -499,6 +680,10 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
     <div class="lp-header">
       <div class="lp-title" id="folder-title">受信トレイ</div>
       <span class="lp-count" id="mail-count"></span>
+      <button class="lp-sort-btn" id="btn-empty-trash" style="display:none;color:var(--red)" title="ゴミ箱を空にする">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        ゴミ箱を空にする
+      </button>
       <button class="lp-sort-btn">
         <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
         日付
@@ -511,6 +696,25 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 
   <!-- ===== 本文ペイン ===== -->
   <div id="body-pane" style="display:none">
+
+    <!-- ===== AIチャットパネル ===== -->
+    <div id="ai-panel">
+      <div class="ai-hdr">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        <div class="ai-hdr-title">AIアシスタント</div>
+      </div>
+      <div id="ai-messages">
+        <div class="ai-msg ai">このメールについて何でも質問してください。<br>「返信文を書いて」と入力すると、情報が足りない場合は質問しながら一緒に返信を作ります。</div>
+      </div>
+      <div class="ai-input-wrap">
+        <textarea id="ai-input" placeholder="返信文を書いて / 要約して / 丁寧に断る返信を…　(Enter で送信)" rows="2"></textarea>
+        <div class="ai-input-footer">
+          <button class="ai-clear-btn" id="ai-clear-btn">リセット</button>
+          <button class="ai-send-btn" id="ai-send-btn">送信</button>
+        </div>
+      </div>
+    </div>
+
     <div id="empty-state">
       <div class="es-icon">📭</div>
       <div class="es-text">メールを選択</div>
@@ -529,18 +733,22 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
           返信
         </button>
+        <button class="dt-btn" id="btn-ai-suggest" style="color:#8764b8" title="AIが返信文を提案">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          AI返信提案
+        </button>
         <button class="dt-btn primary" id="btn-forward">
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
           転送
         </button>
         <div class="dt-sep"></div>
-        <button class="dt-btn" id="btn-archive" title="アーカイブ">
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-          アーカイブ
+        <button class="dt-btn" id="btn-archive" title="ゴミ箱へ移動">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          <span id="btn-archive-label">ゴミ箱へ移動</span>
         </button>
         <button class="dt-btn danger" id="btn-delete">
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          削除
+          <span id="btn-delete-label">完全削除</span>
         </button>
         <div class="dt-sep"></div>
         <button class="dt-btn" id="btn-mark-unread" title="未読にする">
@@ -578,6 +786,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
         <div id="body-text"></div>
       </div>
 
+      <!-- 添付ファイル一覧 -->
+      <div class="attach-list" id="attach-list" style="display:none"></div>
+
       <!-- 返信フォーム -->
       <div class="reply-wrap" id="reply-wrap">
         <div class="rw-header">
@@ -586,6 +797,14 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
         </div>
         <div class="rw-to" id="reply-to-addr"></div>
         <textarea class="rw-input" id="reply-body" placeholder="返信内容を入力…"></textarea>
+        <div class="file-attach-wrap" style="padding:4px 8px 0">
+          <label class="file-attach-label" for="reply-files">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            ファイルを添付
+          </label>
+          <input type="file" id="reply-files" multiple style="display:none">
+          <span class="file-names" id="reply-file-names"></span>
+        </div>
         <div class="rw-footer">
           <button class="rw-cancel" id="btn-reply-cancel">キャンセル</button>
           <button class="rw-send" id="btn-reply-send">
@@ -603,6 +822,14 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
         </div>
         <input class="rw-to-input" id="forward-to" placeholder="転送先（カンマ区切りで複数指定可）">
         <textarea class="rw-input" id="forward-body" placeholder="コメントを入力（省略可）" style="min-height:70px"></textarea>
+        <div class="file-attach-wrap" style="padding:4px 8px 0">
+          <label class="file-attach-label" for="forward-files">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            ファイルを添付
+          </label>
+          <input type="file" id="forward-files" multiple style="display:none">
+          <span class="file-names" id="forward-file-names"></span>
+        </div>
         <div class="rw-footer">
           <button class="rw-cancel" id="btn-forward-cancel">キャンセル</button>
           <button class="rw-send" id="btn-forward-send">転送</button>
@@ -653,27 +880,89 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
     <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
     未読にする
   </div>
+  <div class="ctx-item" id="ctx-restore" style="display:none">
+    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+    受信トレイに戻す
+  </div>
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" id="ctx-delete">
     <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-    削除
+    <span id="ctx-delete-label">ゴミ箱へ移動</span>
   </div>
 </div>
 
 <!-- ===== トースト ===== -->
 <div id="toast-wrap"></div>
 
+<!-- ===== AI返信提案モーダル ===== -->
+<div id="asp-overlay">
+  <div id="asp-panel">
+    <div class="asp-hdr">
+      <span class="asp-hdr-icon">✨</span>
+      <div class="asp-hdr-title">AI返信提案</div>
+      <button class="asp-close" id="asp-close">✕</button>
+    </div>
+    <div class="asp-options">
+      <label>トーン</label>
+      <select id="asp-tone">
+        <option value="丁寧">丁寧</option>
+        <option value="カジュアル">カジュアル</option>
+        <option value="簡潔">簡潔</option>
+        <option value="フォーマル">フォーマル</option>
+      </select>
+      <label>長さ</label>
+      <select id="asp-length">
+        <option value="普通">普通</option>
+        <option value="短め">短め</option>
+        <option value="長め">長め</option>
+      </select>
+      <button class="asp-gen-btn" id="asp-gen-btn">生成</button>
+    </div>
+    <div class="asp-body" id="asp-body">
+      <div id="asp-loading" style="display:none">
+        <div class="asp-spinner"></div>
+        AIが返信文を考えています…
+      </div>
+      <div id="asp-questions" style="display:none">
+        <div class="asp-q-title">以下の情報を教えてください</div>
+        <div id="asp-q-list"></div>
+      </div>
+      <div id="asp-result" style="display:none">
+        <textarea class="asp-reply-area" id="asp-reply-text"></textarea>
+      </div>
+      <div id="asp-hint" style="font-size:.82rem;color:var(--text-light);text-align:center;padding:20px 0">
+        「生成」を押すとAIが返信文を提案します
+      </div>
+    </div>
+    <div class="asp-footer" id="asp-footer" style="display:none">
+      <button class="asp-use-btn" id="asp-use-btn">返信エリアに挿入</button>
+      <button class="asp-answer-btn" id="asp-answer-btn" style="display:none">回答して再生成</button>
+      <button class="asp-regen-btn" id="asp-regen-btn" style="display:none">再生成</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // =============================================
 // ユーティリティ
 // =============================================
 const $ = id => document.getElementById(id);
-const getCsrf = () => { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; };
+// CSRFトークンは <meta name="csrf-token"> から取得（クッキー解析不要）
+const getCsrf = () => document.querySelector('meta[name="csrf-token"]').content;
 
 async function api(url, opts = {}) {
   const r = await fetch(url, {
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), ...(opts.headers||{}) },
     ...opts,
+  });
+  return r.json();
+}
+
+async function apiForm(url, formData) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+    body: formData,
   });
   return r.json();
 }
@@ -728,9 +1017,9 @@ const S = {
   accounts: [], curAccount: null,
   folders: [], curFolder: null,
   labels: [], curLabel: null,
-  emails: [], curEmailId: null, curEmail: null,
+  emails: [], curEmailId: null, curEmail: null,  // curEmailId は IMAP UID
   page: 1, total: 0, loading: false,
-  ctxId: null,
+  ctxId: null,  // IMAP UID
 };
 
 // =============================================
@@ -819,11 +1108,32 @@ function renderFolders() {
 
 function selectFolder(folder) {
   S.curFolder = folder;
+  S.curLabel = null;
   S.page = 1; S.emails = []; S.curEmailId = null;
   $('folder-title').textContent = folder.name;
   showEmpty();
   renderFolders();
+  renderLabels();
   loadEmails();
+  _updateTrashUI(folder);
+}
+
+function _updateTrashUI(folder) {
+  const isTrash = folder && folder.folder_type === 'trash';
+  // ゴミ箱を空にするボタン
+  $('btn-empty-trash').style.display = isTrash ? '' : 'none';
+  // アーカイブボタン: ゴミ箱内は「受信トレイに戻す」、それ以外は「ゴミ箱へ移動」
+  if (isTrash) {
+    $('btn-archive').title = '受信トレイに戻す';
+    $('btn-archive-label').textContent = '受信トレイに戻す';
+    $('btn-archive').querySelector('svg').innerHTML = `<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>`;
+  } else {
+    $('btn-archive').title = 'ゴミ箱へ移動';
+    $('btn-archive-label').textContent = 'ゴミ箱へ移動';
+    $('btn-archive').querySelector('svg').innerHTML = `<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>`;
+  }
+  // 削除ボタン: ゴミ箱内は「完全削除」（常にdanger）、それ以外は非表示（アーカイブが代替）
+  $('btn-delete').style.display = isTrash ? '' : 'none';
 }
 
 // =============================================
@@ -871,8 +1181,8 @@ function renderEmailList() {
     const init = avatarInitial(e.from_address);
     const col  = avatarColor(e.from_address);
     return `
-    <div class="mail-row${e.is_read?'':' unread'}${e.id===S.curEmailId?' active':''}" data-eid="${e.id}">
-      <div class="mr-check${e._checked?' checked':''}" data-eid="${e.id}"></div>
+    <div class="mail-row${e.is_read?'':' unread'}${e.uid===S.curEmailId?' active':''}" data-eid="${e.uid}">
+      <div class="mr-check${e._checked?' checked':''}" data-eid="${e.uid}"></div>
       <div class="avatar" style="background:${col}">${esc(init)}</div>
       <div class="mr-body">
         <div class="mr-top">
@@ -882,7 +1192,7 @@ function renderEmailList() {
         <div class="mr-subject">${esc(e.subject || '（件名なし）')}</div>
         <div class="mr-preview">${esc(e.preview || '')}</div>
         <div class="mr-icons">
-          <button class="star-btn${e.is_starred?' on':''}" data-eid="${e.id}" title="スター">
+          <button class="star-btn${e.is_starred?' on':''}" data-eid="${e.uid}" title="スター">
             ${e.is_starred
               ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="#f2c94c" stroke="#f2c94c" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
               : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
@@ -904,6 +1214,9 @@ function renderEmailList() {
       ev.preventDefault();
       S.ctxId = parseInt(el.dataset.eid);
       const cm = $('ctx-menu');
+      const isTrash = S.curFolder?.folder_type === 'trash';
+      $('ctx-restore').style.display = isTrash ? '' : 'none';
+      $('ctx-delete-label').textContent = isTrash ? '完全削除' : 'ゴミ箱へ移動';
       cm.style.left = Math.min(ev.clientX, window.innerWidth-180) + 'px';
       cm.style.top  = Math.min(ev.clientY, window.innerHeight-220) + 'px';
       cm.style.display = 'block';
@@ -930,18 +1243,19 @@ async function openMail(id) {
   document.querySelectorAll('.mail-row').forEach(r => r.classList.toggle('active', parseInt(r.dataset.eid)===id));
   hideReply(); hideForward();
 
-  const item = S.emails.find(e => e.id === id);
+  const item = S.emails.find(e => e.uid === id);
   if (item && !item.is_read) {
     item.is_read = true;
-    api(`/mail/api/emails/${id}/read/`, { method:'POST' });
+    api(`/mail/api/emails/${id}/read/?folder_id=${S.curFolder.id}`, { method:'POST' });
     bumpUnread(-1);
     renderEmailList();
   }
 
   showDetail();
   $('detail-subject').textContent = '読み込み中…';
+  aiClearChat();
 
-  const d = await api(`/mail/api/emails/${id}/`);
+  const d = await api(`/mail/api/emails/${id}/?folder_id=${S.curFolder.id}`);
   if (!d.ok) { toast('本文の取得に失敗しました', 'error'); return; }
   const m = d.email;
   S.curEmail = m;
@@ -965,14 +1279,34 @@ async function openMail(id) {
     iframe.style.display = 'none'; tv.style.display = 'block';
     tv.textContent = m.body_text || '（本文なし）';
   }
+
+  // 添付ファイル表示
+  const attachList = $('attach-list');
+  const atts = m.attachments || [];
+  if (atts.length) {
+    attachList.style.display = 'flex';
+    attachList.innerHTML = atts.map(a => `
+      <a class="attach-chip" href="/mail/api/emails/${id}/attachments/${a.index}/?folder_id=${S.curFolder.id}" download="${esc(a.filename)}">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        ${esc(a.filename)} <span style="color:var(--text-light);font-size:.7rem">(${(a.size/1024).toFixed(1)}KB)</span>
+      </a>
+    `).join('');
+  } else {
+    attachList.style.display = 'none';
+    attachList.innerHTML = '';
+  }
 }
 
 function showEmpty() {
   $('empty-state').style.display='flex'; $('mail-detail').style.display='none';
+  $('ai-panel').style.display='none';
   $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+  S.curEmail = null; S.curEmailId = null;
+  aiClearChat();
 }
 function showDetail() {
   $('empty-state').style.display='none'; $('mail-detail').style.display='flex';
+  $('ai-panel').style.display='flex';
   $('list-pane').style.display='none'; $('body-pane').style.display='flex';
 }
 
@@ -980,9 +1314,9 @@ function showDetail() {
 // スター
 // =============================================
 async function toggleStar(id) {
-  const d = await api(`/mail/api/emails/${id}/star/`, { method:'POST' });
+  const d = await api(`/mail/api/emails/${id}/star/?folder_id=${S.curFolder.id}`, { method:'POST' });
   if (!d.ok) return;
-  const e = S.emails.find(x => x.id===id);
+  const e = S.emails.find(x => x.uid===id);
   if (e) { e.is_starred = d.is_starred; renderEmailList(); }
 }
 
@@ -995,43 +1329,60 @@ function bumpUnread(delta) {
 }
 
 // =============================================
-// 削除
+// 削除（ゴミ箱内: 完全削除 / それ以外: ゴミ箱へ移動）
 // =============================================
 $('btn-delete').addEventListener('click', async () => {
-  if (!S.curEmailId || !confirm('このメールを削除しますか？')) return;
-  const d = await api(`/mail/api/emails/${S.curEmailId}/`, { method:'DELETE' });
+  if (!S.curEmailId) return;
+  if (!confirm('このメールを完全に削除しますか？元に戻せません。')) return;
+  const d = await api(`/mail/api/emails/${S.curEmailId}/?folder_id=${S.curFolder.id}`, { method:'DELETE' });
   if (d.ok) {
-    toast('削除しました', 'success');
-    S.emails = S.emails.filter(e => e.id!==S.curEmailId);
+    toast('完全削除しました', 'success');
+    S.emails = S.emails.filter(e => e.uid!==S.curEmailId);
     S.curEmailId = null; showEmpty(); renderEmailList();
   } else toast('削除失敗: '+d.error, 'error');
 });
 
 // =============================================
-// アーカイブ（ゴミ箱へ移動）
+// アーカイブ（ゴミ箱へ移動 / ゴミ箱内は受信トレイに復元）
 // =============================================
 $('btn-archive').addEventListener('click', async () => {
   if (!S.curEmailId) return;
-  const trash = S.folders.find(f => f.folder_type==='trash');
-  if (!trash) { toast('ゴミ箱フォルダが見つかりません', 'error'); return; }
-  const d = await api(`/mail/api/emails/${S.curEmailId}/move/`, { method:'POST', body:JSON.stringify({folder_id:trash.id}) });
-  if (d.ok) {
-    toast('アーカイブしました', 'success');
-    S.emails = S.emails.filter(e => e.id!==S.curEmailId);
-    S.curEmailId = null; showEmpty(); renderEmailList();
-  } else toast('失敗: '+d.error, 'error');
+  const isTrash = S.curFolder?.folder_type === 'trash';
+
+  if (isTrash) {
+    // ゴミ箱 → 受信トレイへ復元
+    const inbox = S.folders.find(f => f.folder_type === 'inbox');
+    if (!inbox) { toast('受信トレイが見つかりません', 'error'); return; }
+    const d = await api(`/mail/api/emails/${S.curEmailId}/move/?folder_id=${S.curFolder.id}`, { method:'POST', body:JSON.stringify({folder_id:inbox.id}) });
+    if (d.ok) {
+      toast('受信トレイに戻しました', 'success');
+      S.emails = S.emails.filter(e => e.uid!==S.curEmailId);
+      S.curEmailId = null; showEmpty(); renderEmailList();
+    } else toast('復元失敗: '+d.error, 'error');
+  } else {
+    // それ以外 → ゴミ箱へ移動
+    const trash = S.folders.find(f => f.folder_type === 'trash');
+    if (!trash) { toast('ゴミ箱フォルダが見つかりません', 'error'); return; }
+    const d = await api(`/mail/api/emails/${S.curEmailId}/move/?folder_id=${S.curFolder.id}`, { method:'POST', body:JSON.stringify({folder_id:trash.id}) });
+    if (d.ok) {
+      toast('ゴミ箱へ移動しました', 'success');
+      S.emails = S.emails.filter(e => e.uid!==S.curEmailId);
+      S.curEmailId = null; showEmpty(); renderEmailList();
+    } else toast('失敗: '+d.error, 'error');
+  }
 });
 
 // =============================================
-// 未読に戻す
+// 未読に戻す（DB + IMAP）
 // =============================================
 $('btn-mark-unread').addEventListener('click', async () => {
   if (!S.curEmailId) return;
-  const e = S.emails.find(x => x.id===S.curEmailId);
+  const e = S.emails.find(x => x.uid===S.curEmailId);
   if (e) {
     e.is_read = false;
     bumpUnread(1);
     renderEmailList();
+    api(`/mail/api/emails/${S.curEmailId}/unread/?folder_id=${S.curFolder.id}`, { method:'POST' });
     toast('未読にしました', 'info');
   }
 });
@@ -1059,9 +1410,13 @@ $('btn-reply-send').addEventListener('click', async () => {
   const body = $('reply-body').value.trim();
   if (!body) { toast('本文を入力してください', 'error'); return; }
   const btn = $('btn-reply-send'); btn.disabled = true;
-  const d = await api(`/mail/api/reply/${S.curEmailId}/`, { method:'POST', body:JSON.stringify({body}) });
+  const fd = new FormData();
+  fd.append('body', body);
+  fd.append('folder_id', S.curFolder?.id);
+  Array.from($('reply-files').files).forEach(f => fd.append('attachments', f));
+  const d = await apiForm(`/mail/api/reply/${S.curEmailId}/`, fd);
   btn.disabled = false;
-  if (d.ok) { toast('返信しました', 'success'); hideReply(); }
+  if (d.ok) { toast('返信しました', 'success'); hideReply(); $('reply-files').value=''; $('reply-file-names').textContent=''; }
   else toast('送信失敗: '+d.error, 'error');
 });
 function hideReply() { $('reply-wrap').style.display='none'; $('reply-body').value=''; }
@@ -1081,11 +1436,14 @@ $('btn-forward-send').addEventListener('click', async () => {
   const to = $('forward-to').value.trim();
   if (!to) { toast('転送先を入力してください', 'error'); return; }
   const btn = $('btn-forward-send'); btn.disabled = true;
-  const d = await api(`/mail/api/forward/${S.curEmailId}/`, {
-    method:'POST', body:JSON.stringify({ to: to.split(',').map(s=>s.trim()).filter(Boolean), body:$('forward-body').value.trim() })
-  });
+  const fd = new FormData();
+  fd.append('to', to);
+  fd.append('body', $('forward-body').value.trim());
+  fd.append('folder_id', S.curFolder?.id);
+  Array.from($('forward-files').files).forEach(f => fd.append('attachments', f));
+  const d = await apiForm(`/mail/api/forward/${S.curEmailId}/`, fd);
   btn.disabled = false;
-  if (d.ok) { toast('転送しました', 'success'); hideForward(); }
+  if (d.ok) { toast('転送しました', 'success'); hideForward(); $('forward-files').value=''; $('forward-file-names').textContent=''; }
   else toast('転送失敗: '+d.error, 'error');
 });
 function hideForward() { $('forward-wrap').style.display='none'; }
@@ -1094,7 +1452,7 @@ function hideForward() { $('forward-wrap').style.display='none'; }
 // 新規作成ペイン
 // =============================================
 function openCompose() {
-  ['c-to','c-cc','c-subject','c-body'].forEach(id => $(id).value='');
+  ['c-to','c-cc','c-bcc','c-subject','c-body'].forEach(id => $(id).value='');
   $('list-pane').style.display='none';
   $('body-pane').style.display='none';
   $('compose-pane').classList.add('open');
@@ -1115,18 +1473,37 @@ $('btn-compose-send').addEventListener('click', async () => {
   if(!S.curAccount) { toast('アカウントを選択してください','error'); return; }
   const btn=$('btn-compose-send'); btn.disabled=true;
   const cc=$('c-cc').value.trim();
-  const d = await api('/mail/api/send/', {
-    method:'POST',
-    body:JSON.stringify({
-      account_id:S.curAccount.id,
-      to:to.split(',').map(s=>s.trim()).filter(Boolean),
-      cc:cc?cc.split(',').map(s=>s.trim()).filter(Boolean):[],
-      subject:sub, body,
-    })
-  });
+  const bcc=$('c-bcc').value.trim();
+  const fd = new FormData();
+  fd.append('account_id', S.curAccount.id);
+  fd.append('to', to);
+  if(cc) fd.append('cc', cc);
+  if(bcc) fd.append('bcc', bcc);
+  fd.append('subject', sub);
+  fd.append('body', body);
+  Array.from($('c-files').files).forEach(f => fd.append('attachments', f));
+  const d = await apiForm('/mail/api/send/', fd);
   btn.disabled=false;
-  if(d.ok) { toast('送信しました ✓','success'); closeCompose(); }
+  if(d.ok) { toast('送信しました ✓','success'); closeCompose(); $('c-files').value=''; $('c-file-names').textContent=''; }
   else toast('送信失敗: '+d.error,'error');
+});
+
+// =============================================
+// ゴミ箱を空にする
+// =============================================
+$('btn-empty-trash').addEventListener('click', async () => {
+  if (!S.curFolder || S.curFolder.folder_type !== 'trash') return;
+  if (!confirm('ゴミ箱のメールをすべて完全削除しますか？元に戻せません。')) return;
+  const d = await api(`/mail/api/folders/${S.curFolder.id}/empty/`, { method:'POST' });
+  if (d.ok) {
+    toast('ゴミ箱を空にしました', 'success');
+    S.emails = []; S.total = 0; S.curEmailId = null;
+    $('mail-count').textContent = '';
+    showEmpty(); renderEmailList();
+    bumpUnread(-S.curFolder.unread_count || 0);
+    const f = S.folders.find(x => x.id === S.curFolder.id);
+    if (f) { f.unread_count = 0; renderFolders(); }
+  } else toast('失敗: '+d.error, 'error');
 });
 
 // =============================================
@@ -1151,12 +1528,16 @@ $('ctx-menu').addEventListener('click', e => e.stopPropagation());
 $('ctx-reply').addEventListener('click', () => { openMail(S.ctxId); setTimeout(()=>$('btn-reply').click(),300); });
 $('ctx-forward').addEventListener('click', () => { openMail(S.ctxId); setTimeout(()=>$('btn-forward').click(),300); });
 $('ctx-delete').addEventListener('click', async () => {
-  if(!S.ctxId||!confirm('削除しますか？'))return;
+  if(!S.ctxId) return;
+  const isTrash = S.curFolder?.folder_type === 'trash';
+  const msg = isTrash ? '完全に削除しますか？元に戻せません。' : 'ゴミ箱へ移動しますか？';
+  if(!confirm(msg)) return;
   const id=S.ctxId;
-  const d=await api(`/mail/api/emails/${id}/`,{method:'DELETE'});
+  const d=await api(`/mail/api/emails/${id}/?folder_id=${S.curFolder.id}`,{method:'DELETE'});
   if(d.ok){
-    toast('削除しました','success');
-    S.emails=S.emails.filter(e=>e.id!==id);
+    const label = d.action === 'deleted' ? '完全削除しました' : 'ゴミ箱へ移動しました';
+    toast(label,'success');
+    S.emails=S.emails.filter(e=>e.uid!==id);
     if(S.curEmailId===id){S.curEmailId=null;showEmpty();}
     renderEmailList();
   } else toast('削除失敗: '+d.error,'error');
@@ -1168,35 +1549,66 @@ $('ctx-move').addEventListener('click', async () => {
   const idx=parseInt(c)-1;
   if(isNaN(idx)||idx<0||idx>=S.folders.length)return;
   const tf=S.folders[idx]; const id=S.ctxId;
-  const d=await api(`/mail/api/emails/${id}/move/`,{method:'POST',body:JSON.stringify({folder_id:tf.id})});
+  const d=await api(`/mail/api/emails/${id}/move/?folder_id=${S.curFolder.id}`,{method:'POST',body:JSON.stringify({folder_id:tf.id})});
   if(d.ok){
     toast(`「${tf.name}」へ移動しました`,'success');
-    S.emails=S.emails.filter(e=>e.id!==id);
+    S.emails=S.emails.filter(e=>e.uid!==id);
     if(S.curEmailId===id){S.curEmailId=null;showEmpty();}
     renderEmailList();
   } else toast('移動失敗: '+d.error,'error');
 });
+$('ctx-restore').addEventListener('click', async () => {
+  if(!S.ctxId) return;
+  const inbox=S.folders.find(f=>f.folder_type==='inbox');
+  if(!inbox){toast('受信トレイが見つかりません','error');return;}
+  const id=S.ctxId;
+  const d=await api(`/mail/api/emails/${id}/move/?folder_id=${S.curFolder.id}`,{method:'POST',body:JSON.stringify({folder_id:inbox.id})});
+  if(d.ok){
+    toast('受信トレイに戻しました','success');
+    S.emails=S.emails.filter(e=>e.uid!==id);
+    if(S.curEmailId===id){S.curEmailId=null;showEmpty();}
+    renderEmailList();
+  } else toast('復元失敗: '+d.error,'error');
+});
 $('ctx-read-toggle').addEventListener('click', () => {
-  const e=S.emails.find(x=>x.id===S.ctxId);
-  if(e){e.is_read=!e.is_read;bumpUnread(e.is_read?-1:1);renderEmailList();}
+  const e=S.emails.find(x=>x.uid===S.ctxId);
+  if(e){
+    e.is_read=!e.is_read;
+    bumpUnread(e.is_read?-1:1);
+    renderEmailList();
+    const fid = S.curFolder.id;
+    if(e.is_read){
+      api(`/mail/api/emails/${S.ctxId}/read/?folder_id=${fid}`,{method:'POST'});
+    } else {
+      api(`/mail/api/emails/${S.ctxId}/unread/?folder_id=${fid}`,{method:'POST'});
+    }
+  }
 });
 
 // =============================================
-// 検索（フロントエンドフィルタ）
+// 検索（IMAP サーバーサイド検索）
 // =============================================
+let _searchTimer = null;
 $('search-input').addEventListener('input', function() {
-  const q = this.value.toLowerCase();
-  if (!q) { renderEmailList(); return; }
-  const filtered = S.emails.filter(e =>
-    (e.subject||'').toLowerCase().includes(q) ||
-    (e.from_address||'').toLowerCase().includes(q) ||
-    (e.preview||'').toLowerCase().includes(q)
-  );
-  // 一時的にレンダリング（S.emailsは変えない）
-  const saved = S.emails;
-  S.emails = filtered;
-  renderEmailList();
-  S.emails = saved;
+  const q = this.value.trim();
+  clearTimeout(_searchTimer);
+  if (!q) {
+    // 検索クリア: 現在のフォルダを再表示
+    renderEmailList();
+    return;
+  }
+  _searchTimer = setTimeout(async () => {
+    if (!S.curFolder) return;
+    renderSkeletons();
+    const d = await api(`/mail/api/search/?folder_id=${S.curFolder.id}&q=${encodeURIComponent(q)}`);
+    if (!d.ok) { toast('検索失敗: ' + d.error, 'error'); renderEmailList(); return; }
+    // 検索結果を一時表示（S.emailsは変えない）
+    const saved = S.emails;
+    S.emails = d.emails;
+    $('mail-count').textContent = `${d.total}件（検索結果）`;
+    renderEmailList();
+    S.emails = saved;
+  }, 400);
 });
 
 // =============================================
@@ -1311,7 +1723,7 @@ $('btn-label-menu').addEventListener('click', e => {
       const lid = parseInt(chip.dataset.lid);
       const on = chip.dataset.on === 'true';
       const method = on ? 'DELETE' : 'POST';
-      const d = await api(`/mail/api/emails/${S.curEmailId}/labels/${lid}/`, { method });
+      const d = await api(`/mail/api/emails/${S.curEmailId}/labels/${lid}/?folder_id=${S.curFolder.id}`, { method });
       if (d.ok) {
         if (on) {
           S.curEmail.labels = (S.curEmail.labels||[]).filter(l=>l.id!==lid);
@@ -1320,7 +1732,7 @@ $('btn-label-menu').addEventListener('click', e => {
           S.curEmail.labels = [...(S.curEmail.labels||[]), label];
         }
         // 一覧の該当メールも更新
-        const em = S.emails.find(x=>x.id===S.curEmailId);
+        const em = S.emails.find(x=>x.uid===S.curEmailId);
         if (em) em.labels = S.curEmail.labels;
         // ドロップダウン再描画
         $('btn-label-menu').click(); $('btn-label-menu').click();
@@ -1335,10 +1747,289 @@ document.addEventListener('click', () => { $('label-dropdown').style.display='no
 // =============================================
 
 // =============================================
-// 初期化
+// AI返信提案モーダル
 // =============================================
-loadAccounts();
-loadLabels();
+let _aspQuestions = [];      // 現在の質問リスト
+let _aspAccumulatedQa = '';  // 過去ラウンドの回答累積
+
+function aspOpen() {
+  $('asp-overlay').classList.add('open');
+  aspReset();
+}
+function aspClose() {
+  $('asp-overlay').classList.remove('open');
+}
+function aspReset() {
+  $('asp-hint').style.display = 'block';
+  $('asp-loading').style.display = 'none';
+  $('asp-questions').style.display = 'none';
+  $('asp-result').style.display = 'none';
+  $('asp-footer').style.display = 'none';
+  $('asp-answer-btn').style.display = 'none';
+  $('asp-regen-btn').style.display = 'none';
+  $('asp-use-btn').style.display = 'none';
+  $('asp-gen-btn').disabled = false;
+  _aspQuestions = [];
+  _aspAccumulatedQa = '';
+}
+function aspShowLoading() {
+  $('asp-hint').style.display = 'none';
+  $('asp-questions').style.display = 'none';
+  $('asp-result').style.display = 'none';
+  $('asp-loading').style.display = 'flex';
+  $('asp-footer').style.display = 'none';
+  $('asp-gen-btn').disabled = true;
+}
+function aspShowQuestions(qs) {
+  _aspQuestions = qs;
+  $('asp-loading').style.display = 'none';
+  $('asp-result').style.display = 'none';
+  $('asp-hint').style.display = 'none';
+
+  $('asp-q-list').innerHTML = qs.map((q, i) => `
+    <div class="asp-q-item">
+      <label class="asp-q-label">${esc(q)}</label>
+      <input class="asp-q-input" id="asp-qa-${i}" type="text" placeholder="回答を入力…">
+    </div>
+  `).join('');
+
+  $('asp-questions').style.display = 'block';
+  $('asp-footer').style.display = 'flex';
+  $('asp-answer-btn').style.display = '';
+  $('asp-regen-btn').style.display = 'none';
+  $('asp-use-btn').style.display = 'none';
+  $('asp-gen-btn').disabled = false;
+}
+function aspShowReply(text) {
+  $('asp-loading').style.display = 'none';
+  $('asp-questions').style.display = 'none';
+  $('asp-hint').style.display = 'none';
+
+  $('asp-reply-text').value = text;
+  $('asp-result').style.display = 'block';
+  $('asp-footer').style.display = 'flex';
+  $('asp-use-btn').style.display = '';
+  $('asp-regen-btn').style.display = '';
+  $('asp-answer-btn').style.display = 'none';
+  $('asp-gen-btn').disabled = false;
+}
+
+async function aspGenerate(newQa = '') {
+  if (!S.curEmailId || !S.curFolder) return;
+  aspShowLoading();
+
+  // 新しい回答を累積QAに追記
+  if (newQa) {
+    _aspAccumulatedQa = _aspAccumulatedQa
+      ? _aspAccumulatedQa + '\n\n' + newQa
+      : newQa;
+  }
+
+  const d = await api(`/mail/api/emails/${S.curEmailId}/ai-reply/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      folder_id: S.curFolder.id,
+      tone: $('asp-tone').value,
+      length: $('asp-length').value,
+      extra_qa: _aspAccumulatedQa,
+    }),
+  });
+
+  if (!d.ok) {
+    aspReset();
+    toast('AI提案失敗: ' + d.error, 'error');
+    return;
+  }
+
+  if (d.questions && d.questions.length) {
+    aspShowQuestions(d.questions);
+  } else if (d.reply) {
+    aspShowReply(d.reply);
+  }
+}
+
+// 「生成」ボタン
+$('asp-gen-btn').addEventListener('click', () => aspGenerate());
+
+// 「回答して再生成」ボタン
+$('asp-answer-btn').addEventListener('click', () => {
+  const answers = _aspQuestions.map((q, i) => {
+    const val = ($(`asp-qa-${i}`)?.value || '').trim();
+    return `Q: ${q}\nA: ${val || '（スキップ・不要）'}`;
+  }).join('\n\n');
+  aspGenerate(answers);
+});
+
+// 「再生成」ボタン
+$('asp-regen-btn').addEventListener('click', () => aspGenerate());
+
+// 「返信エリアに挿入」ボタン
+$('asp-use-btn').addEventListener('click', () => {
+  const text = $('asp-reply-text').value;
+  if (!text) return;
+  hideForward();
+  $('reply-to-addr').textContent = S.curEmail ? '返信先: ' + S.curEmail.from_address : '';
+  $('reply-body').value = text;
+  $('reply-wrap').style.display = 'block';
+  $('reply-body').focus();
+  aspClose();
+  toast('返信エリアに挿入しました', 'success');
+});
+
+// 「閉じる」ボタン・オーバーレイクリック
+$('asp-close').addEventListener('click', aspClose);
+$('asp-overlay').addEventListener('click', e => { if (e.target === $('asp-overlay')) aspClose(); });
+
+// ツールバーの「AI返信提案」ボタン → チャットパネルに返信提案を依頼
+$('btn-ai-suggest').addEventListener('click', () => {
+  if (!S.curEmailId) return;
+  const input = $('ai-input');
+  input.value = 'このメールへの返信文を提案してください。';
+  input.focus();
+  aiSend();
+});
+
+// =============================================
+// AIチャット
+// =============================================
+const aiHistory = [];  // [{role:'user'|'assistant', content:'...'}]
+
+function aiClearChat() {
+  aiHistory.length = 0;
+  const msgs = $('ai-messages');
+  if (msgs) msgs.innerHTML = '<div class="ai-msg ai">このメールについて何でも質問してください。<br>「返信文を書いて」と入力すると、情報が足りない場合は質問しながら一緒に返信を作ります。</div>';
+}
+
+function aiAppendMsg(role, text, isError = false, msgType = 'reply') {
+  const msgs = $('ai-messages');
+  const div = document.createElement('div');
+  if (role === 'user') {
+    div.className = 'ai-msg user';
+  } else if (isError) {
+    div.className = 'ai-msg ai';
+  } else if (msgType === 'question') {
+    div.className = 'ai-msg question';
+  } else {
+    div.className = 'ai-msg ai';
+  }
+  div.textContent = text;
+
+  // 返信提案メッセージにのみ「この返信を使う」ボタンを追加
+  if (role === 'assistant' && !isError && msgType === 'reply') {
+    const useBtn = document.createElement('div');
+    useBtn.className = 'ai-use-btn';
+    useBtn.textContent = 'この返信を使う';
+    useBtn.addEventListener('click', () => {
+      hideForward();
+      $('reply-to-addr').textContent = S.curEmail ? '返信先: ' + S.curEmail.from_address : '';
+      $('reply-body').value = text;
+      $('reply-wrap').style.display = 'block';
+      $('reply-body').focus();
+      toast('返信エリアに挿入しました', 'info');
+    });
+    div.appendChild(document.createElement('br'));
+    div.appendChild(useBtn);
+  }
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function aiShowThinking() {
+  const msgs = $('ai-messages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg thinking';
+  div.id = 'ai-thinking';
+  div.textContent = '考え中…';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function aiRemoveThinking() {
+  const el = $('ai-thinking');
+  if (el) el.remove();
+}
+
+async function aiSend() {
+  const input = $('ai-input');
+  const text = input.value.trim();
+  if (!text || !S.curEmailId || !S.curFolder) return;
+
+  input.value = '';
+  aiAppendMsg('user', text);
+  aiHistory.push({ role: 'user', content: text });
+
+  const btn = $('ai-send-btn');
+  btn.disabled = true;
+  aiShowThinking();
+
+  const d = await api(`/mail/api/emails/${S.curEmailId}/ai-chat/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      folder_id: S.curFolder.id,
+      messages: aiHistory,
+    }),
+  });
+
+  aiRemoveThinking();
+  btn.disabled = false;
+
+  if (!d.ok) {
+    aiAppendMsg('assistant', '⚠️ ' + (d.error || '応答に失敗しました'), true);
+    return;
+  }
+
+  aiHistory.push({ role: 'assistant', content: d.reply });
+  aiAppendMsg('assistant', d.reply, false, d.type || 'reply');
+}
+
+$('ai-send-btn').addEventListener('click', aiSend);
+$('ai-clear-btn').addEventListener('click', () => { aiClearChat(); });
+$('ai-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); aiSend(); }
+});
+
+// ファイル選択表示
+function updateFileNames(inputId, labelId) {
+  const files = $(inputId).files;
+  $(labelId).textContent = files.length ? Array.from(files).map(f=>f.name).join(', ') : '';
+}
+$('c-files').addEventListener('change', () => updateFileNames('c-files', 'c-file-names'));
+$('reply-files').addEventListener('change', () => updateFileNames('reply-files', 'reply-file-names'));
+$('forward-files').addEventListener('change', () => updateFileNames('forward-files', 'forward-file-names'));
+
+// =============================================
+// 初期化: サーバーから渡された JSON データで初期表示（API 呼び出し不要）
+// =============================================
+(function initFromServer() {
+  const initAccounts = {{ accounts_json|safe }};
+  const initFolders  = {{ folders_json|safe }};
+  const initLabels   = {{ labels_json|safe }};
+  const initFolderId = {{ initial_folder_id|default:0 }};
+
+  S.labels = initLabels;
+  renderLabels();
+
+  S.accounts = initAccounts;
+  renderAccountDropdown();
+
+  if (!initAccounts.length) return;
+
+  const acc = initAccounts[0];
+  S.curAccount = acc;
+  $('account-email-label').textContent = acc.email_address;
+  const av = $('account-avatar');
+  av.textContent = avatarInitial(acc.email_address);
+  av.style.background = avatarColor(acc.email_address);
+
+  S.folders = initFolders;
+
+  const inbox = initFolders.find(f => f.id === initFolderId) || initFolders[0];
+  if (!inbox) { renderFolders(); return; }
+
+  // フォルダを選択してIMAP経由でメール一覧を取得
+  selectFolder(inbox);
+})();
 </script>
 </body>
 </html>

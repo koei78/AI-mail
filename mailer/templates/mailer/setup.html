@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>メールアカウント設定 - AIメール</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -128,6 +129,11 @@
   </style>
 </head>
 <body>
+<!-- フォーム全体を1つの <form> でまとめる。
+     接続テストは AJAX（ステップ2）、登録はサーバーへの通常 POST（ステップ2→登録ボタン）。
+     ステップ1のフィールドは display:none になっても name 属性があれば POST に含まれる。 -->
+<form method="post" action="{% url 'mailer:setup_register' %}" id="setup-form">
+{% csrf_token %}
 <div class="card">
   <div class="card-header">
     <h1>📧 メールアカウントを追加</h1>
@@ -147,41 +153,41 @@
     <div data-step="1" class="active">
       <div class="preset-label">サーバープリセット</div>
       <div class="presets">
-        <button class="preset-btn" data-preset="sakura">さくらインターネット</button>
-        <button class="preset-btn" data-preset="xserver">Xserver</button>
-        <button class="preset-btn" data-preset="onamae">お名前.com</button>
-        <button class="preset-btn" data-preset="lolipop">ロリポップ</button>
+        <button type="button" class="preset-btn" data-preset="sakura">さくらインターネット</button>
+        <button type="button" class="preset-btn" data-preset="xserver">Xserver</button>
+        <button type="button" class="preset-btn" data-preset="onamae">お名前.com</button>
+        <button type="button" class="preset-btn" data-preset="lolipop">ロリポップ</button>
       </div>
 
       <div class="form-group">
         <label>メールアドレス *</label>
-        <input type="email" id="email_address" placeholder="you@yourdomain.com">
+        <input type="email" id="email_address" name="email_address" placeholder="you@yourdomain.com" required>
       </div>
       <div class="form-group">
         <label>パスワード *</label>
-        <input type="password" id="password" placeholder="メールパスワード">
+        <input type="password" id="password" name="password" placeholder="メールパスワード" required>
       </div>
       <div class="form-group">
         <label>表示名</label>
-        <input type="text" id="display_name" placeholder="山田 太郎">
+        <input type="text" id="display_name" name="display_name" placeholder="山田 太郎">
       </div>
       <div class="form-group">
         <label>ログインID（メアドと異なる場合のみ）</label>
-        <input type="text" id="username" placeholder="空欄の場合はメールアドレスを使用">
+        <input type="text" id="username" name="username" placeholder="空欄の場合はメールアドレスを使用">
       </div>
 
       <div class="form-group">
         <label>受信サーバー（IMAP）</label>
         <div class="row">
-          <input type="text" id="imap_host" placeholder="mail.yourdomain.com">
-          <input type="number" id="imap_port" value="993" min="1" max="65535" style="width:90px">
+          <input type="text" id="imap_host" name="imap_host" placeholder="mail.yourdomain.com" required>
+          <input type="number" id="imap_port" name="imap_port" value="993" min="1" max="65535" style="width:90px" required>
         </div>
       </div>
       <div class="form-group">
         <label>送信サーバー（SMTP）</label>
         <div class="row">
-          <input type="text" id="smtp_host" placeholder="mail.yourdomain.com">
-          <input type="number" id="smtp_port" value="465" min="1" max="65535" style="width:90px">
+          <input type="text" id="smtp_host" name="smtp_host" placeholder="mail.yourdomain.com" required>
+          <input type="number" id="smtp_port" name="smtp_port" value="465" min="1" max="65535" style="width:90px" required>
         </div>
       </div>
       <div class="form-group">
@@ -197,7 +203,7 @@
         </label>
         <div class="ssl-group">
           <label style="font-weight:400;font-size:.85rem;display:flex;align-items:flex-start;gap:6px;cursor:pointer">
-            <input type="checkbox" id="ssl_verify" checked style="margin-top:2px">
+            <input type="checkbox" id="ssl_verify" name="ssl_verify" checked style="margin-top:2px">
             <span>
               SSL証明書を検証する（推奨）<br>
               <span style="font-size:.75rem;color:#78716c;">
@@ -210,7 +216,7 @@
         </div>
       </div>
 
-      <button class="btn btn-primary" id="btn-to-test">接続テストへ →</button>
+      <button type="button" class="btn btn-primary" id="btn-to-test">接続テストへ →</button>
     </div>
 
     <!-- STEP 2: 接続テスト -->
@@ -238,10 +244,11 @@
           <div><div>SMTP認証</div></div>
         </div>
       </div>
-      <button class="btn btn-primary" id="btn-test-start">テスト開始</button>
+      <button type="button" class="btn btn-primary" id="btn-test-start">テスト開始</button>
       <div id="test-hint" style="margin:10px 0;padding:10px 14px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:.82rem;color:#1e40af;display:block;min-height:0;"></div>
-      <button class="btn btn-success" id="btn-register" disabled style="margin-top:6px;">登録する ✓</button>
-      <button class="btn" id="btn-back" style="background:#f3f4f6;color:#374151;margin-top:6px;">← 戻る</button>
+      <!-- type="submit" でフォームをサーバーへ POST する（JS の fetch 不要） -->
+      <button type="submit" class="btn btn-success" id="btn-register" disabled style="margin-top:6px;">登録する ✓</button>
+      <button type="button" class="btn" id="btn-back" style="background:#f3f4f6;color:#374151;margin-top:6px;">← 戻る</button>
     </div>
 
     <!-- STEP 3: 完了 -->
@@ -258,15 +265,11 @@
 
   </div><!-- /card-body -->
 </div><!-- /card -->
+</form><!-- /setup-form -->
 
 <script>
-// =============================
-// CSRFトークン取得（Djangoのcookieから）
-// =============================
-function getCsrf() {
-  const m = document.cookie.match(/csrftoken=([^;]+)/);
-  return m ? m[1] : '';
-}
+// CSRFトークンは <meta name="csrf-token"> から取得（クッキー解析不要）
+const getCsrf = () => document.querySelector('meta[name="csrf-token"]').content;
 
 // =============================
 // サーバープリセット
@@ -469,49 +472,8 @@ document.getElementById('btn-test-start').addEventListener('click', async () => 
   }
 });
 
-// =============================
-// 登録実行
-// =============================
-document.getElementById('btn-register').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-register');
-  btn.disabled = true;
-  btn.textContent = '登録中…';
-
-  const use_ssl = document.querySelector('[name="ssl"]:checked').value === 'ssl';
-  const emailAddr = document.getElementById('email_address').value.trim();
-  const payload = {
-    email_address: emailAddr,
-    password: document.getElementById('password').value,
-    display_name: document.getElementById('display_name').value.trim() || emailAddr,
-    username: document.getElementById('username').value.trim() || emailAddr,
-    imap_host: document.getElementById('imap_host').value.trim(),
-    imap_port: parseInt(document.getElementById('imap_port').value),
-    smtp_host: document.getElementById('smtp_host').value.trim(),
-    smtp_port: parseInt(document.getElementById('smtp_port').value),
-    use_ssl: use_ssl,
-    ssl_verify: document.getElementById('ssl_verify').checked,
-  };
-
-  try {
-    const res = await fetch('/mail/api/accounts/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      goStep(3);
-    } else {
-      alert('登録に失敗しました: ' + data.error);
-      btn.disabled = false;
-      btn.textContent = '登録する ✓';
-    }
-  } catch (e) {
-    alert('ネットワークエラーが発生しました');
-    btn.disabled = false;
-    btn.textContent = '登録する ✓';
-  }
-});
+// 「登録する」は type="submit" のため、フォームがサーバー（setup_register/）へ POST される。
+// ここでは追加の JS 処理は不要。
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>

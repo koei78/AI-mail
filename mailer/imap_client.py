@@ -13,7 +13,7 @@ from email.parser import BytesParser
 
 import imapclient
 
-from .models import Email, MailAccount
+from .models import MailAccount
 
 logger = logging.getLogger(__name__)
 
@@ -55,24 +55,35 @@ def _parse_addresses(header_value: str) -> list[str]:
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
 
-def _parse_body(msg) -> tuple[str, str, bool]:
+def _parse_body(msg) -> tuple[str, str, bool, list]:
     """
-    MIMEメッセージから本文（text/plain, text/html）と
-    添付ファイルの有無を取得する
-    戻り値: (body_text, body_html, has_attachments)
+    MIMEメッセージから本文と添付ファイル情報を取得する
+    戻り値: (body_text, body_html, has_attachments, attachments)
+    attachments: [{'index': int, 'filename': str, 'content_type': str, 'size': int}]
     """
     body_text = ''
     body_html = ''
     has_attachments = False
+    attachments = []
+    attach_index = 0
 
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
             disposition = str(part.get('Content-Disposition', ''))
 
-            # 添付ファイルはスキップして has_attachments フラグを立てる
             if 'attachment' in disposition:
                 has_attachments = True
+                filename = part.get_filename()
+                if filename:
+                    payload = part.get_payload(decode=True)
+                    attachments.append({
+                        'index': attach_index,
+                        'filename': _decode_str(filename),
+                        'content_type': content_type,
+                        'size': len(payload) if payload else 0,
+                    })
+                attach_index += 1
                 continue
 
             if content_type == 'text/plain' and not body_text:
@@ -96,7 +107,7 @@ def _parse_body(msg) -> tuple[str, str, bool]:
             else:
                 body_text = text
 
-    return body_text, body_html, has_attachments
+    return body_text, body_html, has_attachments, attachments
 
 
 # =============================
@@ -227,38 +238,56 @@ class MailClient:
     # メール一覧取得
     # --------------------------------------------------
 
-    def fetch_emails(
-        self, folder_remote_name: str, limit: int = 50, offset: int = 0
-    ) -> list[dict]:
-        """
-        指定フォルダのメール一覧を取得する（新しい順）
-        戻り値: メタ情報のリスト（本文は含まない）
-        """
+    _FETCH_BATCH_SIZE = 200  # 1回のIMAPフェッチで取得する件数
+
+    def get_folder_uids(self, folder_remote_name: str) -> set[int]:
+        """指定フォルダにある全メールのUID一覧を返す"""
         self._require_imap()
         try:
             self._imap.select_folder(folder_remote_name, readonly=True)
-            # 全メッセージのUIDを取得
-            uids = self._imap.search(['ALL'])
+            return set(self._imap.search(['ALL']))
         except Exception as e:
-            raise ImapConnectionError(f'フォルダ選択エラー: {e}') from e
+            raise ImapConnectionError(f'UID一覧取得エラー: {e}') from e
 
-        # 新しい順にソートしてページング
-        uids = sorted(uids, reverse=True)
-        page_uids = uids[offset: offset + limit]
-
-        if not page_uids:
+    def fetch_emails_by_uids(
+        self, folder_remote_name: str, uids: list[int]
+    ) -> list[dict]:
+        """
+        指定UIDリストのメタ情報を取得する（バッチフェッチ）
+        大量UID を一括 fetch するとサーバーが応答しないため、
+        _FETCH_BATCH_SIZE 件ずつに分割して取得する。
+        戻り値: メタ情報のリスト（本文は含まない）
+        """
+        self._require_imap()
+        if not uids:
             return []
 
         try:
-            fetch_data = self._imap.fetch(
-                page_uids,
-                ['ENVELOPE', 'FLAGS', 'RFC822.SIZE'],
-            )
+            self._imap.select_folder(folder_remote_name, readonly=True)
         except Exception as e:
-            raise ImapConnectionError(f'メール取得エラー: {e}') from e
+            raise ImapConnectionError(f'フォルダ選択エラー: {e}') from e
+
+        # 新しい順にソート（UID が大きいほど新しい）
+        target_uids = sorted(uids, reverse=True)
+
+        # バッチに分割してフェッチ
+        raw_fetch: dict = {}
+        batch = self._FETCH_BATCH_SIZE
+        for i in range(0, len(target_uids), batch):
+            chunk = target_uids[i:i + batch]
+            try:
+                chunk_data = self._imap.fetch(
+                    chunk, ['ENVELOPE', 'FLAGS', 'RFC822.SIZE']
+                )
+                raw_fetch.update(chunk_data)
+            except Exception as e:
+                raise ImapConnectionError(f'メール取得エラー: {e}') from e
 
         emails = []
-        for uid, data in fetch_data.items():
+        for uid in target_uids:  # 新しい順を維持
+            data = raw_fetch.get(uid)
+            if not data:
+                continue
             envelope = data.get(b'ENVELOPE')
             flags = data.get(b'FLAGS', [])
             if not envelope:
@@ -331,7 +360,7 @@ class MailClient:
             return {'body_text': '', 'body_html': '', 'has_attachments': False, 'cc_addresses': []}
 
         msg = BytesParser(policy=policy.compat32).parsebytes(raw)
-        body_text, body_html, has_attachments = _parse_body(msg)
+        body_text, body_html, has_attachments, attachments = _parse_body(msg)
 
         cc_header = msg.get('Cc', '')
         cc_addresses = _parse_addresses(cc_header)
@@ -340,8 +369,41 @@ class MailClient:
             'body_text': body_text,
             'body_html': body_html,
             'has_attachments': has_attachments,
+            'attachments': attachments,
             'cc_addresses': cc_addresses,
         }
+
+    def fetch_attachment(self, uid: int, folder_remote_name: str, index: int) -> dict:
+        """
+        指定インデックスの添付ファイルデータを取得する
+        戻り値: {'filename': str, 'content_type': str, 'data': bytes}
+        """
+        self._require_imap()
+        try:
+            self._imap.select_folder(folder_remote_name, readonly=True)
+            fetch_data = self._imap.fetch([uid], ['RFC822'])
+        except Exception as e:
+            raise ImapConnectionError(f'添付ファイル取得エラー: {e}') from e
+
+        raw = fetch_data.get(uid, {}).get(b'RFC822')
+        if not raw:
+            raise ImapConnectionError('メールが見つかりません')
+
+        msg = BytesParser(policy=policy.compat32).parsebytes(raw)
+        attach_index = 0
+        for part in msg.walk():
+            disposition = str(part.get('Content-Disposition', ''))
+            if 'attachment' in disposition:
+                filename = part.get_filename()
+                if filename:
+                    if attach_index == index:
+                        return {
+                            'filename': _decode_str(filename),
+                            'content_type': part.get_content_type(),
+                            'data': part.get_payload(decode=True) or b'',
+                        }
+                    attach_index += 1
+        raise ImapConnectionError('添付ファイルが見つかりません')
 
     # --------------------------------------------------
     # 既読/未読
@@ -395,7 +457,7 @@ class MailClient:
             return False
 
     def delete_email(self, uid: int, folder_remote_name: str) -> bool:
-        """メールを削除（ゴミ箱へ移動または完全削除）する"""
+        """メールを完全削除する（IMAPから消去）"""
         self._require_imap()
         try:
             self._imap.select_folder(folder_remote_name)
@@ -404,6 +466,22 @@ class MailClient:
             return True
         except Exception as e:
             logger.error('削除エラー uid=%s: %s', uid, e)
+            return False
+
+    def append_to_folder(self, raw_bytes: bytes, folder_remote_name: str) -> bool:
+        """指定フォルダにメッセージを追加する（送信済み保存に使用）"""
+        self._require_imap()
+        try:
+            from datetime import datetime, timezone
+            self._imap.append(
+                folder_remote_name,
+                raw_bytes,
+                flags=[b'\\Seen'],
+                msg_time=datetime.now(timezone.utc),
+            )
+            return True
+        except Exception as e:
+            logger.error('フォルダアペンドエラー folder=%s: %s', folder_remote_name, e)
             return False
 
     # --------------------------------------------------
@@ -449,89 +527,219 @@ class MailClient:
         body: str,
         body_html: str = '',
         cc: list[str] | None = None,
+        bcc: list[str] | None = None,
+        attachments: list[dict] | None = None,
+        save_to_sent: str | None = None,
     ) -> bool:
         """
         メールを送信する
-        body_html が指定された場合は multipart/alternative で送信
+        attachments: [{'filename': str, 'content_type': str, 'data': bytes}]
+        bcc: BCCアドレスリスト（ヘッダーには含めず、エンベロープのみに使用）
+        save_to_sent: 送信済みフォルダのremote_name（指定時はIMAPにAPPEND）
         """
-        msg = MIMEMultipart('alternative')
+        from email.mime.base import MIMEBase
+        from email import encoders as _encoders
+
+        if attachments:
+            msg = MIMEMultipart('mixed')
+            alt = MIMEMultipart('alternative')
+            alt.attach(MIMEText(body, 'plain', 'utf-8'))
+            if body_html:
+                alt.attach(MIMEText(body_html, 'html', 'utf-8'))
+            msg.attach(alt)
+            for att in attachments:
+                maintype, _, subtype = att['content_type'].partition('/')
+                part = MIMEBase(maintype, subtype or 'octet-stream')
+                part.set_payload(att['data'])
+                _encoders.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment', filename=att['filename'])
+                msg.attach(part)
+        else:
+            msg = MIMEMultipart('alternative')
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
+            if body_html:
+                msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+
         msg['Subject'] = subject
         msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
         msg['To'] = ', '.join(to)
         if cc:
             msg['Cc'] = ', '.join(cc)
+        # BCC: ヘッダーには含めず送信先リストにのみ追加
 
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        if body_html:
-            msg.attach(MIMEText(body_html, 'html', 'utf-8'))
-
-        all_recipients = to + (cc or [])
+        all_recipients = to + (cc or []) + (bcc or [])
+        raw_bytes = msg.as_bytes()
 
         try:
             smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, all_recipients, msg.as_bytes())
+            smtp.sendmail(self.account.email_address, all_recipients, raw_bytes)
             smtp.quit()
-            return True
         except SmtpConnectionError:
             raise
         except Exception as e:
             logger.error('送信エラー: %s', e)
             raise SmtpConnectionError(f'送信エラー: {e}') from e
 
-    def reply_email(self, original: Email, body: str) -> bool:
+        # 送信済みフォルダへ保存（ベストエフォート）
+        if save_to_sent:
+            try:
+                self.connect_imap()
+                self.append_to_folder(raw_bytes, save_to_sent)
+                self.disconnect_imap()
+            except Exception as e:
+                logger.warning('送信済みフォルダ保存失敗: %s', e)
+
+        return True
+
+    def get_folder_unread_count(self, folder_remote_name: str) -> int:
+        """指定フォルダの未読数をIMAPのSTATUSコマンドで取得する"""
+        self._require_imap()
+        try:
+            status = self._imap.folder_status(folder_remote_name, ['UNSEEN'])
+            return int(status.get(b'UNSEEN', 0))
+        except Exception as e:
+            logger.warning('未読数取得エラー folder=%s: %s', folder_remote_name, e)
+            return 0
+
+    def search_emails(self, folder_remote_name: str, query: str) -> list[int]:
+        """
+        IMAPのSEARCHコマンドでメールを検索し、UIDリストを返す（新しい順）
+        """
+        self._require_imap()
+        try:
+            self._imap.select_folder(folder_remote_name, readonly=True)
+            uids = self._imap.search(['OR', ['SUBJECT', query], ['FROM', query]])
+            return sorted(list(uids), reverse=True)
+        except Exception as e:
+            logger.warning('IMAP検索エラー: %s', e)
+            return []
+
+    def reply_email(self, original_data: dict, body: str, attachments: list[dict] | None = None, save_to_sent: str | None = None) -> bool:
         """
         メールに返信する
-        In-Reply-To / References ヘッダーを設定してスレッドを継続する
+        original_data: {'subject', 'from_address', 'message_id', 'body_text'}
+        attachments: [{'filename': str, 'content_type': str, 'data': bytes}]
+        save_to_sent: 送信済みフォルダのremote_name（指定時はIMAPにAPPEND）
         """
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = f'Re: {original.subject}' if not original.subject.startswith('Re:') else original.subject
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
-        msg['To'] = original.from_address
-        msg['In-Reply-To'] = original.message_id
-        msg['References'] = original.message_id
+        from email.mime.base import MIMEBase
+        from email import encoders as _encoders
 
-        # 引用文を追加
-        quoted = '\n'.join(f'> {line}' for line in original.body_text.splitlines())
+        subject = original_data.get('subject', '')
+        from_address = original_data.get('from_address', '')
+        message_id = original_data.get('message_id', '')
+        body_text = original_data.get('body_text', '')
+
+        quoted = '\n'.join(f'> {line}' for line in body_text.splitlines())
         full_body = f'{body}\n\n{quoted}'
-        msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
+
+        if attachments:
+            msg = MIMEMultipart('mixed')
+            alt = MIMEMultipart('alternative')
+            alt.attach(MIMEText(full_body, 'plain', 'utf-8'))
+            msg.attach(alt)
+            for att in attachments:
+                maintype, _, subtype = att['content_type'].partition('/')
+                part = MIMEBase(maintype, subtype or 'octet-stream')
+                part.set_payload(att['data'])
+                _encoders.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment', filename=att['filename'])
+                msg.attach(part)
+        else:
+            msg = MIMEMultipart('alternative')
+            msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
+
+        msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
+        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['To'] = from_address
+        if message_id:
+            msg['In-Reply-To'] = message_id
+            msg['References'] = message_id
+
+        raw_bytes = msg.as_bytes()
 
         try:
             smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, [original.from_address], msg.as_bytes())
+            smtp.sendmail(self.account.email_address, [from_address], raw_bytes)
             smtp.quit()
-            return True
         except SmtpConnectionError:
             raise
         except Exception as e:
             raise SmtpConnectionError(f'返信エラー: {e}') from e
 
-    def forward_email(self, original: Email, to: list[str], body: str) -> bool:
-        """メールを転送する"""
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = f'Fwd: {original.subject}'
+        if save_to_sent:
+            try:
+                self.connect_imap()
+                self.append_to_folder(raw_bytes, save_to_sent)
+                self.disconnect_imap()
+            except Exception as e:
+                logger.warning('送信済みフォルダ保存失敗（返信）: %s', e)
+
+        return True
+
+    def forward_email(self, original_data: dict, to: list[str], body: str, attachments: list[dict] | None = None, save_to_sent: str | None = None) -> bool:
+        """メールを転送する
+        original_data: {'subject', 'from_address', 'received_at', 'to_addresses', 'body_text'}
+        attachments: [{'filename': str, 'content_type': str, 'data': bytes}]
+        save_to_sent: 送信済みフォルダのremote_name（指定時はIMAPにAPPEND）
+        """
+        from email.mime.base import MIMEBase
+        from email import encoders as _encoders
+
+        subject = original_data.get('subject', '')
+        from_address = original_data.get('from_address', '')
+        received_at = original_data.get('received_at', '')
+        to_addresses = original_data.get('to_addresses', [])
+        body_text = original_data.get('body_text', '')
+
+        header = (
+            f'\n\n---------- 転送メッセージ ----------\n'
+            f'差出人: {from_address}\n'
+            f'日時: {received_at}\n'
+            f'件名: {subject}\n'
+            f'宛先: {", ".join(to_addresses)}\n\n'
+        )
+        full_body = f'{body}{header}{body_text}'
+
+        if attachments:
+            msg = MIMEMultipart('mixed')
+            alt = MIMEMultipart('alternative')
+            alt.attach(MIMEText(full_body, 'plain', 'utf-8'))
+            msg.attach(alt)
+            for att in attachments:
+                maintype, _, subtype = att['content_type'].partition('/')
+                part = MIMEBase(maintype, subtype or 'octet-stream')
+                part.set_payload(att['data'])
+                _encoders.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment', filename=att['filename'])
+                msg.attach(part)
+        else:
+            msg = MIMEMultipart('alternative')
+            msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
+
+        msg['Subject'] = f'Fwd: {subject}'
         msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
         msg['To'] = ', '.join(to)
 
-        # 転送ヘッダー付きの本文
-        header = (
-            f'\n\n---------- 転送メッセージ ----------\n'
-            f'差出人: {original.from_address}\n'
-            f'日時: {original.received_at}\n'
-            f'件名: {original.subject}\n'
-            f'宛先: {", ".join(original.to_addresses)}\n\n'
-        )
-        full_body = f'{body}{header}{original.body_text}'
-        msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
+        raw_bytes = msg.as_bytes()
 
         try:
             smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, to, msg.as_bytes())
+            smtp.sendmail(self.account.email_address, to, raw_bytes)
             smtp.quit()
-            return True
         except SmtpConnectionError:
             raise
         except Exception as e:
             raise SmtpConnectionError(f'転送エラー: {e}') from e
+
+        if save_to_sent:
+            try:
+                self.connect_imap()
+                self.append_to_folder(raw_bytes, save_to_sent)
+                self.disconnect_imap()
+            except Exception as e:
+                logger.warning('送信済みフォルダ保存失敗（転送）: %s', e)
+
+        return True
 
 
 # =============================
