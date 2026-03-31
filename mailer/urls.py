@@ -76,4 +76,10 @@ urlpatterns = [
     # =============================
     path('oauth/gmail/start/', views.gmail_oauth_start, name='gmail_oauth_start'),
     path('oauth/gmail/callback/', views.gmail_oauth_callback, name='gmail_oauth_callback'),
+
+    # =============================
+    # AI メール分類
+    # =============================
+    path('classify/', views.ClassifyView.as_view(), name='classify'),
+    path('api/classify/', views.api_classify_emails, name='api_classify_emails'),
 ]

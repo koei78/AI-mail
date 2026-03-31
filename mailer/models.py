@@ -185,3 +185,46 @@ class EmailLabel(models.Model):
         verbose_name = 'メールラベル紐付け'
         verbose_name_plural = 'メールラベル紐付け'
         unique_together = [['account', 'message_id', 'label']]
+
+
+class EmailClassification(models.Model):
+    """AIによるメール優先度分類結果"""
+
+    CATEGORY_CHOICES = [
+        ('A', 'A: 最優先'),
+        ('B', 'B: 重要'),
+        ('C', 'C: 低優先'),
+    ]
+
+    account = models.ForeignKey(
+        MailAccount,
+        on_delete=models.CASCADE,
+        related_name='classifications',
+        verbose_name='メールアカウント',
+    )
+    folder = models.ForeignKey(
+        MailFolder,
+        on_delete=models.CASCADE,
+        related_name='classifications',
+        verbose_name='フォルダ',
+    )
+    uid = models.IntegerField(verbose_name='IMAP UID')
+    message_id = models.CharField(max_length=512, blank=True, verbose_name='Message-ID')
+    subject = models.CharField(max_length=500, blank=True, verbose_name='件名')
+    sender = models.CharField(max_length=255, blank=True, verbose_name='送信者')
+    summary = models.TextField(blank=True, verbose_name='AI要約')
+    category = models.CharField(
+        max_length=1,
+        choices=CATEGORY_CHOICES,
+        verbose_name='分類カテゴリ',
+    )
+    classified_at = models.DateTimeField(auto_now_add=True, verbose_name='分類日時')
+
+    class Meta:
+        verbose_name = 'メール分類'
+        verbose_name_plural = 'メール分類'
+        unique_together = [['account', 'folder', 'uid']]
+        ordering = ['category', '-classified_at']
+
+    def __str__(self):
+        return f'[{self.category}] {self.subject}'

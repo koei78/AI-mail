@@ -208,6 +208,64 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 /* ===== 本文ペイン ===== */
 #body-pane{flex:1;display:flex;flex-direction:row;overflow:hidden;background:#fff}
 
+/* ===== AI分類ペイン ===== */
+#classify-pane{flex:1;display:none;flex-direction:column;overflow:hidden;background:#f0f2f5}
+#classify-pane.active{display:flex}
+.clp-header{
+  display:flex;align-items:center;gap:8px;padding:10px 16px;
+  background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.clp-title{font-size:.95rem;font-weight:700;flex:1}
+.clp-btn{
+  display:flex;align-items:center;gap:5px;padding:6px 14px;
+  background:var(--blue);color:#fff;border:none;border-radius:var(--radius);
+  font-size:.8rem;font-weight:600;cursor:pointer;transition:opacity .15s;
+}
+.clp-btn:hover{opacity:.85}
+.clp-btn:disabled{opacity:.45;cursor:not-allowed}
+.clp-reset{
+  display:flex;align-items:center;gap:5px;padding:6px 12px;
+  background:transparent;border:1px solid var(--border);border-radius:var(--radius);
+  font-size:.8rem;color:var(--text-sub);cursor:pointer;transition:background .12s;
+}
+.clp-reset:hover{background:var(--hover)}
+.clp-body{flex:1;overflow-y:auto;padding:12px 16px}
+.clp-tbl-wrap{background:#fff;border-radius:4px;border:1px solid var(--border);overflow:hidden}
+.clp-tbl{width:100%;border-collapse:collapse}
+.clp-tbl thead tr{background:#eeeeee}
+.clp-tbl thead th{
+  padding:9px 14px;text-align:left;font-size:.78rem;font-weight:700;
+  color:#424242;white-space:nowrap;border-bottom:2px solid var(--border);
+}
+.clp-tbl tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.clp-tbl tbody tr:hover{background:#e3f2fd}
+.clp-tbl tbody tr:last-child{border-bottom:none}
+.clp-tbl tbody td{padding:10px 14px;font-size:.85rem;vertical-align:middle}
+.clp-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:700;min-width:36px;
+}
+.clp-badge-A{background:#f44336;color:#fff}
+.clp-badge-B{background:#ff9800;color:#fff}
+.clp-badge-C{background:#4caf50;color:#fff}
+.clp-col-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.clp-col-sub{color:var(--text-sub);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.clp-col-summary{color:var(--text-sub);font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clp-reply-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 10px;border:1px solid var(--blue);color:var(--blue);
+  border-radius:var(--radius);font-size:.75rem;font-weight:600;
+  background:transparent;cursor:pointer;transition:background .12s;
+}
+.clp-reply-btn:hover{background:var(--blue-bg)}
+.clp-empty{text-align:center;padding:40px;color:var(--text-sub)}
+.clp-loading{text-align:center;padding:32px;color:var(--text-sub)}
+.clp-spinner{
+  display:inline-block;width:16px;height:16px;
+  border:2px solid var(--border);border-top-color:var(--blue);
+  border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;
+}
+
 /* ===== AIチャットパネル ===== */
 #ai-panel{
   width:300px;flex-shrink:0;display:none;flex-direction:column;
@@ -577,6 +635,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   </div>
   <div class="tb-spacer"></div>
   <div class="tb-right">
+    <button onclick="showClassifyPane()" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:4px;border:1px solid #0078d4;color:#0078d4;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap;background:#fff">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI分類
+    </button>
     <button class="tb-icon-btn" id="btn-sync-top" title="同期">
       <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </button>
@@ -612,6 +673,10 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
     <button class="sb-new-btn" id="btn-compose">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       新規メール
+    </button>
+    <button id="btn-classify-view" onclick="showClassifyPane()" style="display:flex;align-items:center;gap:7px;margin:0 10px 8px;padding:7px 12px;border-radius:4px;background:linear-gradient(135deg,#eff6fc,#deecf9);border:1px solid #b3d6f5;color:#0078d4;font-size:.8rem;font-weight:600;cursor:pointer;width:calc(100% - 20px);transition:opacity .12s">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      AI メール分類
     </button>
     <div class="sb-section-label">フォルダ</div>
     <div id="folder-list">
@@ -678,7 +743,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   <!-- ===== メール一覧ペイン ===== -->
   <div id="list-pane">
     <div class="lp-header">
-      <div class="lp-title" id="folder-title">受信トレイ</div>
+      <div class="lp-title" id="folder-title">受信トｊｊｊレイ</div>
       <span class="lp-count" id="mail-count"></span>
       <button class="lp-sort-btn" id="btn-empty-trash" style="display:none;color:var(--red)" title="ゴミ箱を空にする">
         <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -837,6 +902,39 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
       </div>
     </div>
   </div>
+  <!-- ===== AI分類ペイン ===== -->
+  <div id="classify-pane">
+    <div class="clp-header">
+      <span class="clp-title">AI メール分類</span>
+      <button class="clp-reset" id="clp-reset-btn">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/></svg>
+        リセット
+      </button>
+      <button class="clp-btn" id="clp-classify-btn">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        カテゴリ分類開始
+      </button>
+    </div>
+    <div class="clp-body">
+      <div class="clp-tbl-wrap">
+        <table class="clp-tbl">
+          <thead>
+            <tr>
+              <th>件名</th>
+              <th>送信者</th>
+              <th>要約</th>
+              <th style="width:80px">カテゴリ</th>
+              <th style="width:70px">操作</th>
+            </tr>
+          </thead>
+          <tbody id="clp-tbody">
+            <tr><td colspan="5" class="clp-empty">「カテゴリ分類開始」を押すと、受信トレイの新着メールをAIが自動分類します。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /main -->
 </div><!-- /app -->
 
@@ -1107,6 +1205,7 @@ function renderFolders() {
 }
 
 function selectFolder(folder) {
+  hideClassifyPane();
   S.curFolder = folder;
   S.curLabel = null;
   S.page = 1; S.emails = []; S.curEmailId = null;
@@ -2029,7 +2128,119 @@ $('forward-files').addEventListener('change', () => updateFileNames('forward-fil
 
   // フォルダを選択してIMAP経由でメール一覧を取得
   selectFolder(inbox);
+
+  // AI分類ページからの遷移: URLパラメータでメールを自動で開いて返信モーダルを起動
+  const _qp = new URLSearchParams(window.location.search);
+  const _autoUid = parseInt(_qp.get('auto_open_uid'));
+  const _autoFolderId = parseInt(_qp.get('auto_open_folder'));
+  const _autoAction = _qp.get('auto_action');
+  if (_autoUid && _autoFolderId) {
+    const _targetFolder = initFolders.find(f => f.id === _autoFolderId);
+    if (_targetFolder) {
+      selectFolder(_targetFolder);
+      // メール一覧が読み込まれた後に対象メールを開く
+      const _waitId = setInterval(() => {
+        const _em = S.emails.find(e => e.uid === _autoUid);
+        if (_em) {
+          clearInterval(_waitId);
+          openMail(_autoUid);
+          if (_autoAction === 'reply') {
+            setTimeout(() => {
+              const replyBtn = document.getElementById('btn-reply');
+              if (replyBtn) replyBtn.click();
+            }, 600);
+          }
+        }
+      }, 300);
+      setTimeout(() => clearInterval(_waitId), 15000);
+    }
+  }
 })();
+
+// =============================================
+// AI 分類ペイン
+// =============================================
+function showClassifyPane() {
+  $('list-pane').style.display = 'none';
+  $('body-pane').style.display = 'none';
+  $('classify-pane').classList.add('active');
+  // サイドバーのフォルダ選択状態を解除
+  document.querySelectorAll('.folder-item.active').forEach(el => el.classList.remove('active'));
+  $('btn-classify-view').style.background = 'linear-gradient(135deg,#deecf9,#c7e0f4)';
+  loadClassifications();
+}
+
+function hideClassifyPane() {
+  $('classify-pane').classList.remove('active');
+  $('list-pane').style.display = '';
+  $('body-pane').style.display = '';
+  if ($('btn-classify-view')) $('btn-classify-view').style.background = 'linear-gradient(135deg,#eff6fc,#deecf9)';
+}
+
+async function loadClassifications() {
+  const tbody = $('clp-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="clp-loading"><span class="clp-spinner"></span>読み込み中…</td></tr>';
+  const d = await api('/mail/api/classify/');
+  if (!d.ok) { tbody.innerHTML = '<tr><td colspan="5" class="clp-empty">読み込み失敗</td></tr>'; return; }
+  renderClpRows(d.classifications);
+}
+
+function renderClpRows(items) {
+  const tbody = $('clp-tbody');
+  if (!items || !items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="clp-empty">まだ分類結果がありません。「カテゴリ分類開始」を押してください。</td></tr>';
+    return;
+  }
+  const sorted = [...items].sort((a, b) => a.category.localeCompare(b.category));
+  tbody.innerHTML = sorted.map(c => `
+    <tr onclick="openMailFromClassify(${c.uid},${c.folder_id})">
+      <td><div class="clp-col-title" title="${esc(c.subject)}">${esc(c.subject)||'(件名なし)'}</div></td>
+      <td><div class="clp-col-sub" title="${esc(c.sender)}">${esc(c.sender)||'(不明)'}</div></td>
+      <td><div class="clp-col-summary" title="${esc(c.summary)}">${esc(c.summary)||''}</div></td>
+      <td><span class="clp-badge clp-badge-${esc(c.category)}">${esc(c.category)}</span></td>
+      <td onclick="event.stopPropagation()">
+        <button class="clp-reply-btn" onclick="openMailFromClassify(${c.uid},${c.folder_id},true)">
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>返信
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function openMailFromClassify(uid, folderId, doReply = false) {
+  const folder = S.folders.find(f => f.id === folderId);
+  if (!folder) { toast('フォルダが見つかりません', 'error'); return; }
+  hideClassifyPane();
+  selectFolder(folder);
+  const waitId = setInterval(() => {
+    const em = S.emails.find(e => e.uid === uid);
+    if (em) {
+      clearInterval(waitId);
+      openMail(uid);
+      if (doReply) setTimeout(() => { const b = $('btn-reply'); if(b) b.click(); }, 600);
+    }
+  }, 300);
+  setTimeout(() => clearInterval(waitId), 15000);
+}
+
+$('clp-classify-btn').addEventListener('click', async () => {
+  const btn = $('clp-classify-btn');
+  btn.disabled = true;
+  const tbody = $('clp-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="clp-loading"><span class="clp-spinner"></span>AIが分析中です…</td></tr>';
+  const d = await api('/mail/api/classify/', { method: 'POST' });
+  btn.disabled = false;
+  if (!d.ok) { toast('分類失敗: ' + (d.error||'不明'), 'error'); loadClassifications(); return; }
+  toast(d.message, 'success');
+  const listD = await api('/mail/api/classify/');
+  if (listD.ok) renderClpRows(listD.classifications);
+});
+
+$('clp-reset-btn').addEventListener('click', async () => {
+  if (!confirm('分類結果をすべてリセットしますか？')) return;
+  const d = await api('/mail/api/classify/', { method: 'DELETE' });
+  if (d.ok) { renderClpRows([]); toast('リセットしました', 'success'); }
+  else toast('リセット失敗', 'error');
+});
 </script>
 </body>
 </html>

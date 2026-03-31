@@ -14,7 +14,7 @@ from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from .imap_client import ImapConnectionError, MailClient, SmtpConnectionError, test_connection
-from .models import EmailLabel, Label, MailAccount, MailFolder
+from .models import EmailClassification, EmailLabel, Label, MailAccount, MailFolder
 from .sync import sync_account
 
 logger = logging.getLogger(__name__)
@@ -1384,3 +1384,196 @@ def gmail_oauth_callback(request):
         logger.warning('同期開始エラー: %s', e)
 
     return redirect('mailer:index')
+
+
+# =============================
+# AI メール分類ページ
+# =============================
+
+class ClassifyView(LoginRequiredMixin, TemplateView):
+    """AI分類ページ"""
+    template_name = 'mailer/classify.html'
+
+    def get(self, request, *args, **kwargs):
+        has_account = MailAccount.objects.filter(user=request.user, is_active=True).exists()
+        if not has_account:
+            return redirect('mailer:setup')
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        accounts = MailAccount.objects.filter(user=self.request.user, is_active=True)
+        classifications = (
+            EmailClassification.objects
+            .filter(account__in=accounts)
+            .select_related('account', 'folder')
+            .order_by('category', '-classified_at')
+        )
+        ctx['classifications'] = classifications
+        return ctx
+
+
+@login_required
+def api_classify_emails(request):
+    """POST: 未分類の新着メールをAIで分類して保存 / GET: 分類結果一覧を返す / DELETE: 分類結果を全削除"""
+    if request.method == 'DELETE':
+        accounts = MailAccount.objects.filter(user=request.user, is_active=True)
+        deleted, _ = EmailClassification.objects.filter(account__in=accounts).delete()
+        return _json_ok({'deleted': deleted})
+    if request.method == 'GET':
+        accounts = MailAccount.objects.filter(user=request.user, is_active=True)
+        results = []
+        for c in (
+            EmailClassification.objects
+            .filter(account__in=accounts)
+            .select_related('account', 'folder')
+            .order_by('category', '-classified_at')
+        ):
+            results.append({
+                'id': c.id,
+                'category': c.category,
+                'subject': c.subject,
+                'sender': c.sender,
+                'summary': c.summary,
+                'folder_id': c.folder_id,
+                'uid': c.uid,
+                'classified_at': c.classified_at.isoformat(),
+            })
+        return _json_ok({'classifications': results})
+
+    if request.method != 'POST':
+        return _json_error('許可されていないメソッドです', 405)
+
+    import os as _os
+    api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
+    if not api_key:
+        return _json_error('OPENAI_API_KEY が設定されていません', 500)
+
+    accounts = list(MailAccount.objects.filter(user=request.user, is_active=True))
+    if not accounts:
+        return _json_error('メールアカウントが登録されていません')
+
+    # 分類対象メールを収集（各アカウントの受信トレイから）
+    to_classify = []  # [(account, folder, uid, subject, sender, message_id), ...]
+    errors = []
+
+    for account in accounts:
+        inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
+        if not inbox:
+            continue
+
+        # 既分類済みの UID セットを取得
+        classified_uids = set(
+            EmailClassification.objects
+            .filter(account=account, folder=inbox)
+            .values_list('uid', flat=True)
+        )
+
+        try:
+            client = MailClient(account)
+            client.connect_imap()
+            all_uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)
+            # 直近50件を対象に未分類のものを抽出
+            target_uids = [u for u in all_uids[:50] if u not in classified_uids]
+            if target_uids:
+                emails_data = client.fetch_emails_by_uids(inbox.remote_name, target_uids)
+                for em in emails_data:
+                    to_classify.append((
+                        account, inbox,
+                        em.get('uid', 0),
+                        em.get('subject', ''),
+                        em.get('from_address', ''),
+                        em.get('message_id', ''),
+                    ))
+            client.disconnect_imap()
+        except Exception as exc:
+            logger.warning('分類用メール取得失敗 account=%s: %s', account.id, exc)
+            errors.append(str(exc))
+
+    if not to_classify:
+        return _json_ok({'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors})
+
+    # OpenAI でバッチ分類（20件ずつ）
+    import openai
+    import json as _json
+
+    BATCH_SIZE = 20
+    saved_count = 0
+
+    for i in range(0, len(to_classify), BATCH_SIZE):
+        batch = to_classify[i:i + BATCH_SIZE]
+
+        email_list_text = '\n'.join(
+            f'[{j}] 件名: {subject or "(件名なし)"} | 送信者: {sender or "(不明)"}'
+            for j, (_, _, _, subject, sender, _) in enumerate(batch)
+        )
+
+        system_prompt = (
+            'あなたはメール管理AIです。以下のメール一覧を優先度でA/B/Cに分類し、'
+            '各メールの要約を日本語で1文（30文字以内）で生成してください。\n\n'
+            '【分類基準】\n'
+            'A: 最優先 — 自分宛てに返信・対応が必要で期限が迫っている。例: 至急の依頼、緊急連絡、締め切り付きの確認依頼\n'
+            'B: 重要 — 返信や対応が必要だが急ぎでない。例: 通常の業務依頼、質問、打ち合わせ調整\n'
+            'C: 低優先 — 返信不要・確認だけでよい。例: サービスからのお知らせ、自動送信メール、ニュースレター、'
+            '会員登録・購入確認、メルマガ、システム通知、広告メール、定期レポート\n\n'
+            '【重要ルール】\n'
+            '- 送信者がサービス・企業・システム（no-reply、noreply、notification、info@、support@など）の場合は原則C\n'
+            '- 件名に「お知らせ」「通知」「確認」「ご案内」「登録」「受付」「完了」「newsletter」が含まれる場合は原則C\n'
+            '- 営業メール・セールスメール・製品紹介・サービス提案・広告・スポンサーメール・キャンペーン・割引案内は原則C\n'
+            '- 見知らぬ企業や初めての送信者からの一方的な提案・宣伝はCとする\n'
+            '- 人から人への直接のやり取り（既存の関係者・知人・取引先からの具体的な依頼や質問）のみA・Bに分類する\n\n'
+            '以下のJSON形式のみを返してください（説明文は不要）:\n'
+            '{"results":[{"index":0,"category":"A","summary":"要約文"},...]}'
+        )
+
+        try:
+            openai_client = openai.OpenAI(api_key=api_key)
+            response = openai_client.chat.completions.create(
+                model='gpt-4o-mini',
+                max_tokens=800,
+                response_format={'type': 'json_object'},
+                messages=[
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': f'メール一覧:\n{email_list_text}'},
+                ],
+            )
+            raw = response.choices[0].message.content.strip()
+            parsed = _json.loads(raw)
+            results_list = parsed.get('results', [])
+        except Exception as exc:
+            logger.error('OpenAI分類エラー batch=%d: %s', i, exc)
+            errors.append(f'AI分類エラー: {exc}')
+            continue
+
+        for item in results_list:
+            idx = item.get('index')
+            if idx is None or idx >= len(batch):
+                continue
+            account, folder, uid, subject, sender, message_id = batch[idx]
+            category = item.get('category', 'C')
+            if category not in ('A', 'B', 'C'):
+                category = 'C'
+            summary = item.get('summary', '')[:200]
+
+            try:
+                EmailClassification.objects.update_or_create(
+                    account=account,
+                    folder=folder,
+                    uid=uid,
+                    defaults={
+                        'message_id': message_id,
+                        'subject': subject[:500] if subject else '',
+                        'sender': sender[:255] if sender else '',
+                        'summary': summary,
+                        'category': category,
+                    },
+                )
+                saved_count += 1
+            except Exception as exc:
+                logger.warning('分類保存失敗 uid=%s: %s', uid, exc)
+
+    return _json_ok({
+        'classified': saved_count,
+        'message': f'{saved_count}件のメールを分類しました',
+        'errors': errors,
+    })
