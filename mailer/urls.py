@@ -78,6 +78,12 @@ urlpatterns = [
     path('oauth/gmail/callback/', views.gmail_oauth_callback, name='gmail_oauth_callback'),
 
     # =============================
+    # Outlook OAuth2
+    # =============================
+    path('oauth/outlook/start/', views.outlook_oauth_start, name='outlook_oauth_start'),
+    path('oauth/outlook/callback/', views.outlook_oauth_callback, name='outlook_oauth_callback'),
+
+    # =============================
     # AI メール分類
     # =============================
     path('classify/', views.ClassifyView.as_view(), name='classify'),

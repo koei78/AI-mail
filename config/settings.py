@@ -124,6 +124,13 @@ GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8000/mail/oauth/gmail/callback/')
 
 # =============================
+# Microsoft OAuth2 (Outlook)
+# =============================
+MICROSOFT_CLIENT_ID = os.getenv('MICROSOFT_CLIENT_ID', '')
+MICROSOFT_CLIENT_SECRET = os.getenv('MICROSOFT_CLIENT_SECRET', '')
+MICROSOFT_REDIRECT_URI = os.getenv('MICROSOFT_REDIRECT_URI', 'http://localhost:8000/mail/oauth/outlook/callback/')
+
+# =============================
 # メール暗号化キー（Fernet）
 # ⚠️ 本番環境では必ず環境変数で設定すること
 # 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

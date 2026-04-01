@@ -1,0 +1,23 @@
+WARNING: Ignoring invalid distribution ~ebsocket-client (C:\Python312\Lib\site-packages)
+WARNING: Ignoring invalid distribution ~t-dlp (C:\Python312\Lib\site-packages)
+Collecting msal
+  Downloading msal-1.35.1-py3-none-any.whl.metadata (11 kB)
+Requirement already satisfied: requests<3,>=2.0.0 in c:\python312\lib\site-packages (from msal) (2.31.0)
+Requirement already satisfied: PyJWT<3,>=1.0.0 in c:\python312\lib\site-packages (from PyJWT[crypto]<3,>=1.0.0->msal) (2.10.1)
+Requirement already satisfied: cryptography<49,>=2.5 in c:\python312\lib\site-packages (from msal) (42.0.8)
+Requirement already satisfied: cffi>=1.12 in c:\python312\lib\site-packages (from cryptography<49,>=2.5->msal) (2.0.0)
+Requirement already satisfied: charset-normalizer<4,>=2 in c:\python312\lib\site-packages (from requests<3,>=2.0.0->msal) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in c:\python312\lib\site-packages (from requests<3,>=2.0.0->msal) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in c:\python312\lib\site-packages (from requests<3,>=2.0.0->msal) (2.2.1)
+Requirement already satisfied: certifi>=2017.4.17 in c:\python312\lib\site-packages (from requests<3,>=2.0.0->msal) (2024.2.2)
+Requirement already satisfied: pycparser in c:\python312\lib\site-packages (from cffi>=1.12->cryptography<49,>=2.5->msal) (2.22)
+Downloading msal-1.35.1-py3-none-any.whl (119 kB)
+WARNING: Ignoring invalid distribution ~ebsocket-client (C:\Python312\Lib\site-packages)
+WARNING: Ignoring invalid distribution ~t-dlp (C:\Python312\Lib\site-packages)
+Installing collected packages: msal
+WARNING: Ignoring invalid distribution ~ebsocket-client (C:\Python312\Lib\site-packages)
+WARNING: Ignoring invalid distribution ~t-dlp (C:\Python312\Lib\site-packages)
+Successfully installed msal-1.35.1
+
+[notice] A new release of pip is available: 25.1.1 -> 26.0.1
+[notice] To update, run: python.exe -m pip install --upgrade pip

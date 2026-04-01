@@ -74,6 +74,7 @@ def _get_oauth2_access_token(account) -> str:
     return creds.token
 
 
+
 def _parse_body(msg) -> tuple[str, str, bool, list]:
     """
     MIMEメッセージから本文と添付ファイル情報を取得する
@@ -195,7 +196,8 @@ class MailClient:
                 ssl_context=ssl_context,
                 timeout=30,
             )
-            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+            auth_type = getattr(self.account, 'auth_type', 'password')
+            if auth_type == 'oauth2':
                 access_token = _get_oauth2_access_token(self.account)
                 self._imap.oauth2_login(self.account.email_address, access_token)
             else:
@@ -454,6 +456,23 @@ class MailClient:
             logger.error('未読設定エラー uid=%s: %s', uid, e)
             return False
 
+    def toggle_star(self, uid: int, folder_remote_name: str) -> bool:
+        """スター（\\Flagged）をトグルする。現在の状態を取得して切り替える。"""
+        self._require_imap()
+        try:
+            self._imap.select_folder(folder_remote_name)
+            data = self._imap.fetch([uid], ['FLAGS'])
+            flags = data.get(uid, {}).get(b'FLAGS', [])
+            if b'\\Flagged' in flags:
+                self._imap.remove_flags([uid], [b'\\Flagged'])
+                return False
+            else:
+                self._imap.add_flags([uid], [b'\\Flagged'])
+                return True
+        except Exception as e:
+            logger.error('スタートグルエラー uid=%s: %s', uid, e)
+            return False
+
     # --------------------------------------------------
     # 移動・削除
     # --------------------------------------------------
@@ -491,6 +510,20 @@ class MailClient:
             logger.error('削除エラー uid=%s: %s', uid, e)
             return False
 
+    def empty_folder(self, folder_remote_name: str) -> bool:
+        """フォルダ内の全メッセージを完全削除する"""
+        self._require_imap()
+        try:
+            self._imap.select_folder(folder_remote_name)
+            uids = self._imap.search(['ALL'])
+            if uids:
+                self._imap.add_flags(uids, [b'\\Deleted'])
+                self._imap.expunge()
+            return True
+        except Exception as e:
+            logger.error('フォルダ空化エラー folder=%s: %s', folder_remote_name, e)
+            return False
+
     def append_to_folder(self, raw_bytes: bytes, folder_remote_name: str) -> bool:
         """指定フォルダにメッセージを追加する（送信済み保存に使用）"""
         self._require_imap()
@@ -520,7 +553,8 @@ class MailClient:
             ssl_context.verify_mode = ssl.CERT_NONE
 
         try:
-            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+            auth_type = getattr(self.account, 'auth_type', 'password')
+            if auth_type == 'oauth2':
                 import base64
                 access_token = _get_oauth2_access_token(self.account)
                 smtp = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
@@ -529,7 +563,6 @@ class MailClient:
                 encoded = base64.b64encode(auth_string.encode()).decode()
                 smtp.docmd('AUTH', 'XOAUTH2 ' + encoded)
                 return smtp
-
             password = self.account.get_password()
             if self.account.use_ssl:
                 smtp = smtplib.SMTP_SSL(
