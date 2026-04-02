@@ -265,6 +265,23 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   border:2px solid var(--border);border-top-color:var(--blue);
   border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;
 }
+.clp-summary{
+  display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;font-size:.8rem;
+}
+.clp-summary-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 9px;border-radius:10px;font-weight:700;font-size:.75rem;
+}
+.clp-summary-chip.A{background:#f44336;color:#fff}
+.clp-summary-chip.B{background:#ff9800;color:#fff}
+.clp-summary-chip.C{background:#4caf50;color:#fff}
+.clp-summary-label{color:var(--text-sub)}
+.clp-footer{
+  display:flex;align-items:center;justify-content:flex-end;
+  padding:8px 16px;background:#fff;border-top:1px solid var(--border);flex-shrink:0;
+  font-size:.78rem;
+}
 
 /* ===== AIチャットパネル ===== */
 #ai-panel{
@@ -674,10 +691,14 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       新規メール
     </button>
-    <button id="btn-classify-view" onclick="showClassifyPane()" style="display:flex;align-items:center;gap:7px;margin:0 10px 8px;padding:7px 12px;border-radius:4px;background:linear-gradient(135deg,#eff6fc,#deecf9);border:1px solid #b3d6f5;color:#0078d4;font-size:.8rem;font-weight:600;cursor:pointer;width:calc(100% - 20px);transition:opacity .12s">
+    <button id="btn-classify-view" onclick="showClassifyPane()" style="display:flex;align-items:center;gap:7px;margin:0 10px 4px;padding:7px 12px;border-radius:4px;background:linear-gradient(135deg,#eff6fc,#deecf9);border:1px solid #b3d6f5;color:#0078d4;font-size:.8rem;font-weight:600;cursor:pointer;width:calc(100% - 20px);transition:opacity .12s">
       <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       AI メール分類
     </button>
+    <a href="/mail/classify/" style="display:flex;align-items:center;gap:6px;margin:0 10px 8px;padding:5px 12px;border-radius:4px;border:1px solid #b3d6f5;color:#0078d4;font-size:.78rem;font-weight:500;text-decoration:none;width:calc(100% - 20px);box-sizing:border-box;transition:background .12s" onmouseover="this.style.background='#e8f4fd'" onmouseout="this.style.background=''">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      分類リストを開く
+    </a>
     <div class="sb-section-label">フォルダ</div>
     <div id="folder-list">
       <div style="padding:12px 16px;font-size:.82rem;color:var(--text-light)">読み込み中…</div>
@@ -906,14 +927,17 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   <div id="classify-pane">
     <div class="clp-header">
       <span class="clp-title">AI メール分類</span>
-      <button class="clp-reset" id="clp-reset-btn">
-        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/></svg>
-        リセット
-      </button>
       <button class="clp-btn" id="clp-classify-btn">
         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        カテゴリ分類開始
+        分類開始
       </button>
+    </div>
+    <!-- 件数サマリーバー -->
+    <div class="clp-summary" id="clp-summary" style="display:none">
+      <span class="clp-summary-label">受信トレイ:</span>
+      <span class="clp-summary-chip A" id="clp-cnt-a">A 0</span>
+      <span class="clp-summary-chip B" id="clp-cnt-b">B 0</span>
+      <span class="clp-summary-chip C" id="clp-cnt-c">C 0</span>
     </div>
     <div class="clp-body">
       <div class="clp-tbl-wrap">
@@ -921,17 +945,22 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
           <thead>
             <tr>
               <th>件名</th>
-              <th>送信者</th>
-              <th>要約</th>
               <th style="width:80px">カテゴリ</th>
-              <th style="width:70px">操作</th>
+              <th style="width:60px">操作</th>
             </tr>
           </thead>
           <tbody id="clp-tbody">
-            <tr><td colspan="5" class="clp-empty">「カテゴリ分類開始」を押すと、受信トレイの新着メールをAIが自動分類します。</td></tr>
+            <tr><td colspan="3" class="clp-empty">「分類開始」を押すと、受信トレイの新着メールをAIが自動分類します。</td></tr>
           </tbody>
         </table>
       </div>
+    </div>
+    <!-- フッター -->
+    <div class="clp-footer">
+      <a href="/mail/classify/" style="display:inline-flex;align-items:center;gap:4px;color:var(--blue);text-decoration:none;font-weight:500" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+        詳細・スケジュール設定
+        <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
     </div>
   </div>
 
@@ -2179,24 +2208,32 @@ function hideClassifyPane() {
 
 async function loadClassifications() {
   const tbody = $('clp-tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="clp-loading"><span class="clp-spinner"></span>読み込み中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="3" class="clp-loading"><span class="clp-spinner"></span>読み込み中…</td></tr>';
   const d = await api('/mail/api/classify/');
-  if (!d.ok) { tbody.innerHTML = '<tr><td colspan="5" class="clp-empty">読み込み失敗</td></tr>'; return; }
+  if (!d.ok) { tbody.innerHTML = '<tr><td colspan="3" class="clp-empty">読み込み失敗</td></tr>'; return; }
   renderClpRows(d.classifications);
 }
 
 function renderClpRows(items) {
   const tbody = $('clp-tbody');
+  const summary = $('clp-summary');
   if (!items || !items.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="clp-empty">まだ分類結果がありません。「カテゴリ分類開始」を押してください。</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="clp-empty">まだ分類結果がありません。「分類開始」を押してください。</td></tr>';
+    summary.style.display = 'none';
     return;
   }
+  // 件数サマリー更新
+  const cnt = {A: 0, B: 0, C: 0};
+  items.forEach(c => { if (cnt[c.category] !== undefined) cnt[c.category]++; });
+  $('clp-cnt-a').textContent = 'A ' + cnt.A;
+  $('clp-cnt-b').textContent = 'B ' + cnt.B;
+  $('clp-cnt-c').textContent = 'C ' + cnt.C;
+  summary.style.display = 'flex';
+
   const sorted = [...items].sort((a, b) => a.category.localeCompare(b.category));
   tbody.innerHTML = sorted.map(c => `
     <tr onclick="openMailFromClassify(${c.uid},${c.folder_id})">
       <td><div class="clp-col-title" title="${esc(c.subject)}">${esc(c.subject)||'(件名なし)'}</div></td>
-      <td><div class="clp-col-sub" title="${esc(c.sender)}">${esc(c.sender)||'(不明)'}</div></td>
-      <td><div class="clp-col-summary" title="${esc(c.summary)}">${esc(c.summary)||''}</div></td>
       <td><span class="clp-badge clp-badge-${esc(c.category)}">${esc(c.category)}</span></td>
       <td onclick="event.stopPropagation()">
         <button class="clp-reply-btn" onclick="openMailFromClassify(${c.uid},${c.folder_id},true)">
@@ -2226,20 +2263,14 @@ $('clp-classify-btn').addEventListener('click', async () => {
   const btn = $('clp-classify-btn');
   btn.disabled = true;
   const tbody = $('clp-tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="clp-loading"><span class="clp-spinner"></span>AIが分析中です…</td></tr>';
+  $('clp-summary').style.display = 'none';
+  tbody.innerHTML = '<tr><td colspan="3" class="clp-loading"><span class="clp-spinner"></span>AIが分析中です…</td></tr>';
   const d = await api('/mail/api/classify/', { method: 'POST' });
   btn.disabled = false;
   if (!d.ok) { toast('分類失敗: ' + (d.error||'不明'), 'error'); loadClassifications(); return; }
   toast(d.message, 'success');
   const listD = await api('/mail/api/classify/');
   if (listD.ok) renderClpRows(listD.classifications);
-});
-
-$('clp-reset-btn').addEventListener('click', async () => {
-  if (!confirm('分類結果をすべてリセットしますか？')) return;
-  const d = await api('/mail/api/classify/', { method: 'DELETE' });
-  if (d.ok) { renderClpRows([]); toast('リセットしました', 'success'); }
-  else toast('リセット失敗', 'error');
 });
 </script>
 </body>

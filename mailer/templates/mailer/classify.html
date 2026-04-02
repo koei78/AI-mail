@@ -152,6 +152,44 @@ tbody td{padding:12px 16px;font-size:.88rem;vertical-align:middle}
       </button>
     </div>
 
+    <!-- スケジュール設定パネル -->
+    <div id="schedule-panel" style="border-bottom:1px solid var(--border);padding:14px 20px;background:#fafafa">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:.88rem;font-weight:600;color:#424242;flex:1;min-width:150px">⏰ 自動仕分けスケジュール</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="sch-enabled" style="width:15px;height:15px;accent-color:var(--blue)">
+          <span id="sch-toggle-label" style="font-size:.83rem;font-weight:600;color:#757575">無効</span>
+        </label>
+      </div>
+
+      <div id="sch-settings" style="display:none;margin-top:12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <span style="font-size:.82rem;color:#616161">実行時刻:</span>
+          <select id="sch-hour" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
+          <span style="font-size:.9rem;font-weight:700">:</span>
+          <select id="sch-minute" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <span style="font-size:.82rem;color:#616161">曜日:</span>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem">
+            <input type="checkbox" id="sch-wd-all-chk" style="accent-color:var(--blue)"> 毎日
+          </label>
+          <span id="sch-wd-chips"></span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button id="btn-sch-save" style="background:var(--blue);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius);font-size:.83rem;font-weight:600;cursor:pointer">保存</button>
+          <span id="sch-status" style="font-size:.8rem;color:#757575"></span>
+        </div>
+      </div>
+
+      <div id="sch-info" style="display:none;margin-top:8px;font-size:.8rem;color:#757575;display:flex;gap:20px;flex-wrap:wrap">
+        <span>次回実行: <strong id="sch-next-run">-</strong></span>
+        <span>最終実行: <strong id="sch-last-run">-</strong></span>
+      </div>
+    </div>
+
     <!-- テーブル -->
     <div class="tbl-wrap">
       <table id="mail-table">
@@ -345,6 +383,137 @@ function renderRows(items) {
   });
   document.getElementById('footer-count').textContent = items.length + '件';
 }
+
+// ===== スケジュール設定 =====
+const WD_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
+
+// 時・分セレクトを初期化
+(function initSelects() {
+  const hourSel = document.getElementById('sch-hour');
+  const minSel = document.getElementById('sch-minute');
+  for (let h = 0; h < 24; h++) {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = String(h).padStart(2, '0');
+    hourSel.appendChild(opt);
+  }
+  for (let m = 0; m < 60; m++) {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = String(m).padStart(2, '0');
+    minSel.appendChild(opt);
+  }
+})();
+
+// 曜日チェックボックスをJS描画
+(function initWeekdays() {
+  const wrap = document.getElementById('sch-wd-chips');
+  WD_LABELS.forEach((label, idx) => {
+    const lb = document.createElement('label');
+    lb.style.cssText = 'display:inline-flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem;margin-left:6px';
+    lb.innerHTML = `<input type="checkbox" class="sch-wd" value="${idx}" style="accent-color:var(--blue)"> ${label}`;
+    wrap.appendChild(lb);
+  });
+})();
+
+// 「毎日」チェックで個別曜日をdisable
+document.getElementById('sch-wd-all-chk').addEventListener('change', function () {
+  document.querySelectorAll('.sch-wd').forEach(cb => {
+    cb.checked = false;
+    cb.disabled = this.checked;
+  });
+});
+
+// 個別曜日チェック時は「毎日」を解除
+document.getElementById('sch-wd-chips').addEventListener('change', function () {
+  const anyChecked = [...document.querySelectorAll('.sch-wd')].some(c => c.checked);
+  document.getElementById('sch-wd-all-chk').checked = !anyChecked;
+});
+
+// 有効/無効トグル
+document.getElementById('sch-enabled').addEventListener('change', function () {
+  document.getElementById('sch-settings').style.display = this.checked ? 'block' : 'none';
+  document.getElementById('sch-toggle-label').textContent = this.checked ? '有効' : '無効';
+  document.getElementById('sch-toggle-label').style.color = this.checked ? 'var(--blue)' : '#757575';
+});
+
+function applyScheduleToUI(sch) {
+  const enabled = sch.is_enabled;
+  document.getElementById('sch-enabled').checked = enabled;
+  document.getElementById('sch-settings').style.display = enabled ? 'block' : 'none';
+  document.getElementById('sch-toggle-label').textContent = enabled ? '有効' : '無効';
+  document.getElementById('sch-toggle-label').style.color = enabled ? 'var(--blue)' : '#757575';
+  document.getElementById('sch-hour').value = sch.hour;
+  document.getElementById('sch-minute').value = sch.minute;
+
+  const allChk = document.getElementById('sch-wd-all-chk');
+  if (!sch.weekdays || sch.weekdays.length === 0) {
+    allChk.checked = true;
+    document.querySelectorAll('.sch-wd').forEach(cb => { cb.checked = false; cb.disabled = true; });
+  } else {
+    allChk.checked = false;
+    document.querySelectorAll('.sch-wd').forEach(cb => {
+      cb.checked = sch.weekdays.includes(parseInt(cb.value));
+      cb.disabled = false;
+    });
+  }
+
+  const infoEl = document.getElementById('sch-info');
+  if (enabled) {
+    infoEl.style.display = 'flex';
+    document.getElementById('sch-next-run').textContent = sch.next_run_at
+      ? new Date(sch.next_run_at).toLocaleString('ja-JP') : '-';
+    document.getElementById('sch-last-run').textContent = sch.last_run_at
+      ? new Date(sch.last_run_at).toLocaleString('ja-JP') : 'なし';
+  } else {
+    infoEl.style.display = 'none';
+  }
+}
+
+async function loadSchedule() {
+  try {
+    const res = await fetch('/mail/api/classify/schedule/');
+    const data = await res.json();
+    if (data.ok) applyScheduleToUI(data.schedule);
+  } catch (e) {
+    console.warn('スケジュール取得失敗', e);
+  }
+}
+loadSchedule();
+
+document.getElementById('btn-sch-save').addEventListener('click', async () => {
+  const isEnabled = document.getElementById('sch-enabled').checked;
+  const hour = parseInt(document.getElementById('sch-hour').value);
+  const minute = parseInt(document.getElementById('sch-minute').value);
+  const allDay = document.getElementById('sch-wd-all-chk').checked;
+  const weekdays = allDay
+    ? []
+    : [...document.querySelectorAll('.sch-wd:checked')].map(cb => parseInt(cb.value));
+
+  const statusEl = document.getElementById('sch-status');
+  statusEl.textContent = '保存中...';
+
+  try {
+    const res = await fetch('/mail/api/classify/schedule/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_enabled: isEnabled, hour, minute, weekdays }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      applyScheduleToUI(data.schedule);
+      statusEl.textContent = '保存しました ✓';
+      toast('スケジュールを保存しました', 'success');
+      setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } else {
+      statusEl.textContent = 'エラー: ' + (data.error || '不明');
+      toast('保存失敗', 'error');
+    }
+  } catch (e) {
+    statusEl.textContent = '通信エラー';
+    toast('通信エラー', 'error');
+  }
+});
 </script>
 </body>
 </html>

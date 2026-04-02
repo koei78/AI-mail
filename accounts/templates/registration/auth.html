@@ -115,6 +115,8 @@ input.err{border-color:var(--red)}
 .switch-hint{text-align:center;font-size:.86rem;color:var(--sub)}
 .switch-btn{color:var(--blue);font-weight:700;cursor:pointer;background:none;border:none;font-size:.86rem}
 .switch-btn:hover{text-decoration:underline}
+.terms-note{font-size:.78rem;color:var(--sub);margin-bottom:.75rem;text-align:center}
+.terms-note a{color:#7dd3fc}
 
 @media(max-width:768px){
   body{grid-template-columns:1fr}
@@ -277,6 +279,10 @@ input.err{border-color:var(--red)}
                class="{% if register_form.password2.errors %}err{% endif %}">
         {% for e in register_form.password2.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
       </div>
+      <p class="terms-note">
+        登録することで<a href="/terms/" target="_blank" rel="noopener">利用規約</a>および
+        <a href="/privacy/" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したことになります。
+      </p>
       <button type="submit" class="btn-submit">アカウントを作成する →</button>
     </form>
     <div class="divider">すでにアカウントをお持ちの方</div>

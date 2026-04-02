@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>プライバシーポリシー — MailHub</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#0078d4;--blue-dark:#005a9e;--text:#1e293b;--muted:#64748b;
+  --bg:#f8fafc;--card:#fff;--border:#e2e8f0;--radius:12px;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px}
+
+/* ナビ */
+nav{background:#fff;border-bottom:1px solid var(--border);padding:0 2rem;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:.5rem;text-decoration:none;font-weight:700;font-size:1.1rem;color:var(--text)}
+.brand-icon{width:32px;height:32px;background:linear-gradient(135deg,#0078d4,#4f46e5);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff}
+.nav-back{text-decoration:none;color:var(--blue);font-size:.9rem;display:flex;align-items:center;gap:.3rem}
+.nav-back:hover{text-decoration:underline}
+
+/* ヒーロー */
+.hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:3rem 2rem 2.5rem;text-align:center}
+.hero h1{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;margin-bottom:.5rem}
+.hero-date{color:#94a3b8;font-size:.9rem}
+
+/* コンテンツ */
+main{max-width:800px;margin:2rem auto;padding:0 1.5rem 4rem}
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.75rem 2rem;margin-bottom:1.25rem}
+.section-card h2{font-size:1rem;font-weight:700;color:var(--blue);border-left:3px solid var(--blue);padding-left:.75rem;margin-bottom:1rem}
+.section-card p{color:var(--text);margin-bottom:.75rem}
+.section-card p:last-child{margin-bottom:0}
+.section-card ul,.section-card ol{padding-left:1.4rem;margin:.5rem 0}
+.section-card li{margin-bottom:.35rem}
+.section-card table{width:100%;border-collapse:collapse;font-size:.9rem;margin:.75rem 0}
+.section-card th,.section-card td{border:1px solid var(--border);padding:.55rem .75rem;text-align:left}
+.section-card th{background:#f1f5f9;font-weight:600}
+.warn-box{background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:.75rem 1rem;margin:.5rem 0;font-size:.88rem;color:#854d0e}
+a{color:var(--blue)}
+
+/* フッター */
+footer{background:#1e293b;color:#94a3b8;text-align:center;padding:1.5rem;font-size:.85rem}
+footer a{color:#7dd3fc;text-decoration:none}
+footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-brand">
+    <div class="brand-icon">✉</div>
+    MailHub
+  </a>
+  <a href="/" class="nav-back">← トップページへ</a>
+</nav>
+
+<div class="hero">
+  <h1>プライバシーポリシー</h1>
+  <div class="hero-date">最終更新日：2026年4月2日</div>
+</div>
+
+<main>
+
+  <div class="section-card">
+    <p>「MailHub」（以下「本サービス」）は、「運営者名」（以下「当社」）が提供するメール管理・自動分類サービスです。当社は、お客様の個人情報の取り扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」）を定めます。</p>
+  </div>
+
+  <div class="section-card">
+    <h2>第1条　事業者情報</h2>
+    <table>
+      <tr><th>項目</th><th>内容</th></tr>
+      <tr><td>事業者名</td><td>「会社名または氏名」</td></tr>
+      <tr><td>住所</td><td>「住所」</td></tr>
+      <tr><td>メールアドレス</td><td>「連絡先メールアドレス」</td></tr>
+    </table>
+  </div>
+
+  <div class="section-card">
+    <h2>第2条　取得する個人情報</h2>
+    <p>当社は、以下の個人情報を取得します。</p>
+
+    <p><strong>（1）アカウント情報</strong></p>
+    <ul>
+      <li>氏名・メールアドレス（Google / Microsoft アカウントから取得）</li>
+      <li>プロフィール画像（任意）</li>
+    </ul>
+
+    <p><strong>（2）メール接続情報</strong></p>
+    <ul>
+      <li>独自ドメインメール用のIMAPホスト・SMTPホスト・ポート番号・ユーザー名</li>
+      <li>メールパスワード（Fernet方式で暗号化してサーバー側DBに保存します）</li>
+      <li>Google / Microsoft OAuth2リフレッシュトークン（Fernet方式で暗号化してサーバー側DBに保存します）</li>
+    </ul>
+
+    <p><strong>（3）メール情報</strong></p>
+    <p>本サービスの機能提供のため、以下のメールデータにアクセスします。</p>
+    <ul>
+      <li>メールの件名・本文・送受信日時・送受信者のメールアドレス</li>
+      <li>メールのラベル・フォルダ情報</li>
+    </ul>
+    <div class="warn-box">⚠️ 添付ファイルの内容は取得しません。</div>
+
+    <p><strong>（4）AI分類結果</strong></p>
+    <p>AIによるメール分類処理の結果として、以下の情報を当社サーバー側のデータベースに保存します。</p>
+    <ul>
+      <li>メールの件名・送信者・AI生成の要約文・優先度カテゴリ（A/B/C）</li>
+    </ul>
+    <p>メール本文はIMAPサーバーから直接取得し、AI分類処理後に当社DBへは保存しません（AI分類結果のみ保存）。</p>
+
+    <p><strong>（5）バックグラウンド自動同期</strong></p>
+    <p>本サービスは、お客様のご利用状況に関わらず、15分おきに自動でメールアカウントの同期処理を実行します。これはメール一覧を最新の状態に保つためのものです。</p>
+
+    <p><strong>（6）利用情報</strong></p>
+    <ul>
+      <li>IPアドレス・ブラウザ情報・デバイス情報</li>
+      <li>本サービスの操作ログ・アクセス履歴</li>
+      <li>Cookie および類似技術による収集した情報</li>
+    </ul>
+
+    <p><strong>（7）決済情報</strong></p>
+    <p>クレジットカード番号等の決済情報は、当社では保持しません。決済代行サービス（Stripe等）が直接取り扱います。</p>
+  </div>
+
+  <div class="section-card">
+    <h2>第3条　個人情報の利用目的</h2>
+    <p>取得した個人情報は、以下の目的に利用します。</p>
+    <ol>
+      <li>本サービスの提供・運営・改善</li>
+      <li>メールの自動分類・優先度付け機能の実行</li>
+      <li>ユーザーへのサポート・お問い合わせ対応</li>
+      <li>利用規約違反・不正利用の調査・対応</li>
+      <li>料金の請求・決済処理</li>
+      <li>サービスに関する重要なお知らせの送信</li>
+      <li>法令に基づく対応</li>
+    </ol>
+  </div>
+
+  <div class="section-card">
+    <h2>第4条　AI機能とデータの外部送信</h2>
+
+    <p><strong>（1）AI処理の概要</strong></p>
+    <p>本サービスはメールの自動分類・優先度付けに人工知能（AI）を使用します。この処理のため、お客様のメール情報の一部を外部AIサービスに送信します。</p>
+
+    <p><strong>（2）送信先・送信内容</strong></p>
+    <table>
+      <tr><th>項目</th><th>内容</th></tr>
+      <tr><td><strong>送信先サービス</strong></td><td>OpenAI, Inc.（モデル: gpt-4o-mini）</td></tr>
+      <tr><td><strong>送信されるデータ</strong></td><td>メールの件名・本文（一部または全文）</td></tr>
+      <tr><td><strong>送信しないデータ</strong></td><td>添付ファイル・パスワード・決済情報</td></tr>
+      <tr><td><strong>利用目的</strong></td><td>メール分類・優先度判定のみ</td></tr>
+      <tr><td><strong>モデル学習への利用</strong></td><td>なし（OpenAIのAPIポリシーに基づき、学習には使用されません）</td></tr>
+      <tr><td><strong>AIサービス側での保持期間</strong></td><td>処理完了後に破棄（同社のデータ保持ポリシーに準拠）</td></tr>
+    </table>
+
+    <p><strong>（3）ユーザーの選択肢</strong></p>
+    <p>アカウント設定からAI分類機能を無効にすることができます。無効にした場合、メールの自動分類機能はご利用いただけません。</p>
+
+    <p><strong>（4）各社のプライバシーポリシー</strong></p>
+    <ul>
+      <li>OpenAI: <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">https://openai.com/policies/privacy-policy</a></li>
+    </ul>
+  </div>
+
+  <div class="section-card">
+    <h2>第5条　第三者提供</h2>
+    <p>当社は、以下の場合を除き、お客様の個人情報を第三者に提供しません。</p>
+    <ol>
+      <li>お客様の同意がある場合</li>
+      <li>法令に基づく場合（裁判所・警察等からの適法な要請）</li>
+      <li>生命・身体・財産の保護のために必要な場合</li>
+      <li>業務委託先への提供（第6条参照）</li>
+    </ol>
+  </div>
+
+  <div class="section-card">
+    <h2>第6条　業務委託先（サービス提供に利用する第三者サービス）</h2>
+    <p>当社は、以下のサービスを利用してサービスを提供します。各社の個人情報の取り扱いは、各社のプライバシーポリシーに従います。</p>
+    <table>
+      <tr><th>サービス</th><th>用途</th><th>提供者</th></tr>
+      <tr><td>Google OAuth 2.0</td><td>Gmail 連携認証</td><td>Google LLC</td></tr>
+      <tr><td>Microsoft OAuth 2.0</td><td>Outlook 連携認証</td><td>Microsoft Corporation</td></tr>
+      <tr><td>OpenAI API</td><td>AI メール分類処理</td><td>OpenAI, Inc.</td></tr>
+      <tr><td>Stripe</td><td>決済処理</td><td>Stripe, Inc.</td></tr>
+      <tr><td>クラウドサーバー等</td><td>データホスティング</td><td>（例: Amazon Web Services, Inc.）</td></tr>
+    </table>
+  </div>
+
+  <div class="section-card">
+    <h2>第7条　Cookieの使用</h2>
+    <p>当社は、以下の目的でCookieおよび類似技術を使用します。</p>
+    <ul>
+      <li>ログイン状態の維持</li>
+      <li>セキュリティトークンの管理</li>
+      <li>利用状況の分析（Google Analytics等）</li>
+    </ul>
+    <p>ブラウザの設定によりCookieを無効にすることができますが、その場合、本サービスの一部機能が利用できなくなります。</p>
+  </div>
+
+  <div class="section-card">
+    <h2>第8条　データの保管・セキュリティ</h2>
+
+    <p><strong>保管期間</strong></p>
+    <ul>
+      <li>アカウント情報：アカウント削除後90日間</li>
+      <li>AI分類結果（件名・送信者・要約）：アカウント削除後90日間</li>
+      <li>メールデータのキャッシュ：「7日間」（設定により変更可能）</li>
+      <li>利用ログ：「1年間」</li>
+    </ul>
+
+    <p><strong>セキュリティ対策</strong></p>
+    <ul>
+      <li>通信の暗号化（TLS/SSL）</li>
+      <li>パスワード・OAuth2トークンのFernet方式暗号化</li>
+      <li>データベースの暗号化</li>
+      <li>アクセス権限の最小化</li>
+      <li>定期的なセキュリティレビュー</li>
+    </ul>
+  </div>
+
+  <div class="section-card">
+    <h2>第9条　お客様の権利</h2>
+    <p>お客様は、当社に対して以下を請求することができます。</p>
+    <ul>
+      <li>個人情報の開示・訂正・削除</li>
+      <li>利用停止・消去</li>
+      <li>第三者提供の停止</li>
+    </ul>
+    <p>請求は、本ポリシー末尾のお問い合わせ窓口までご連絡ください。本人確認のうえ、合理的な期間内に対応します。</p>
+  </div>
+
+  <div class="section-card">
+    <h2>第10条　未成年者の利用</h2>
+    <p>本サービスは、16歳未満の方を対象としていません。16歳未満の方の個人情報を意図せず取得した場合、速やかに削除します。</p>
+  </div>
+
+  <div class="section-card">
+    <h2>第11条　Google APIの利用について</h2>
+    <p>本サービスによるGoogleユーザーデータの取得・使用は、<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API サービスのユーザーデータポリシー</a>（Limited Use 要件を含む）に準拠しています。</p>
+    <p>取得したGmailデータは以下の目的にのみ使用します。</p>
+    <ul>
+      <li>お客様へのメール分類機能の提供</li>
+      <li>お客様が明示的に要求した機能の実行</li>
+    </ul>
+    <p>Gmailデータを以下の目的に使用することはありません。</p>
+    <ul>
+      <li>広告の表示・ターゲティング</li>
+      <li>データの販売・第三者提供（本ポリシーに定める場合を除く）</li>
+      <li>人が読む形でのデータ閲覧（セキュリティ・法令対応・サポートを除く）</li>
+    </ul>
+  </div>
+
+  <div class="section-card">
+    <h2>第12条　プライバシーポリシーの変更</h2>
+    <p>当社は、法令の改正やサービス内容の変更に伴い、本ポリシーを変更することがあります。重要な変更がある場合は、サービス上またはメールにてお知らせします。変更後に本サービスを継続利用した場合、変更後のポリシーに同意したものとみなします。</p>
+  </div>
+
+  <div class="section-card">
+    <h2>第13条　お問い合わせ</h2>
+    <p>個人情報の取り扱いに関するお問い合わせは、以下までご連絡ください。</p>
+    <p><strong>メールアドレス：</strong>「連絡先メールアドレス」</p>
+  </div>
+
+  <p style="font-size:.8rem;color:var(--muted);text-align:center;margin-top:2rem">本ポリシーは日本語を正文とします。</p>
+
+</main>
+
+<footer>
+  <a href="/">MailHub</a> &nbsp;|&nbsp;
+  <a href="/terms/">利用規約</a>
+  &nbsp;&nbsp;© 2026 MailHub. All rights reserved.
+</footer>
+
+</body>
+</html>

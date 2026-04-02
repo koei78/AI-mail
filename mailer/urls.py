@@ -88,4 +88,5 @@ urlpatterns = [
     # =============================
     path('classify/', views.ClassifyView.as_view(), name='classify'),
     path('api/classify/', views.api_classify_emails, name='api_classify_emails'),
+    path('api/classify/schedule/', views.api_classify_schedule, name='api_classify_schedule'),
 ]

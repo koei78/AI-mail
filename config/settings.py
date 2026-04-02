@@ -147,10 +147,14 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Tokyo'
 
-# Celery Beatスケジュール（15分おきに全アカウント同期）
+# Celery Beatスケジュール
 CELERY_BEAT_SCHEDULE = {
     'sync-all-accounts': {
         'task': 'mailer.tasks.sync_all_accounts_task',
         'schedule': crontab(minute='*/15'),
+    },
+    'check-classify-schedules': {
+        'task': 'mailer.tasks.check_classify_schedules_task',
+        'schedule': crontab(minute='*'),  # 毎分チェック
     },
 }

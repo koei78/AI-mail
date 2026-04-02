@@ -1593,14 +1593,26 @@ def api_classify_emails(request):
     if request.method != 'POST':
         return _json_error('許可されていないメソッドです', 405)
 
+    try:
+        result = _classify_emails_for_user(request.user.id)
+    except ValueError as exc:
+        return _json_error(str(exc), 500)
+    if result.get('no_accounts'):
+        return _json_error('メールアカウントが登録されていません')
+    return _json_ok(result)
+
+
+def _classify_emails_for_user(user_id: int) -> dict:
+    """指定ユーザーの受信トレイに対してAI分類を実行して保存する。
+    api_classify_emails と Celery タスクの両方から呼ばれる純粋関数。"""
     import os as _os
     api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
     if not api_key:
-        return _json_error('OPENAI_API_KEY が設定されていません', 500)
+        raise ValueError('OPENAI_API_KEY が設定されていません')
 
-    accounts = list(MailAccount.objects.filter(user=request.user, is_active=True))
+    accounts = list(MailAccount.objects.filter(user_id=user_id, is_active=True))
     if not accounts:
-        return _json_error('メールアカウントが登録されていません')
+        return {'classified': 0, 'message': 'アカウントなし', 'errors': [], 'no_accounts': True}
 
     # 分類対象メールを収集（各アカウントの受信トレイから）
     to_classify = []  # [(account, folder, uid, subject, sender, message_id), ...]
@@ -1640,7 +1652,7 @@ def api_classify_emails(request):
             errors.append(str(exc))
 
     if not to_classify:
-        return _json_ok({'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors})
+        return {'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors}
 
     # OpenAI でバッチ分類（20件ずつ）
     import openai
@@ -1721,8 +1733,60 @@ def api_classify_emails(request):
             except Exception as exc:
                 logger.warning('分類保存失敗 uid=%s: %s', uid, exc)
 
-    return _json_ok({
+    return {
         'classified': saved_count,
         'message': f'{saved_count}件のメールを分類しました',
         'errors': errors,
-    })
+    }
+
+
+def _serialize_schedule(schedule) -> dict:
+    return {
+        'is_enabled': schedule.is_enabled,
+        'hour': schedule.hour,
+        'minute': schedule.minute,
+        'weekdays': schedule.weekdays,
+        'last_run_at': schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+        'next_run_at': schedule.next_run_at().isoformat() if schedule.is_enabled else None,
+    }
+
+
+@login_required
+def api_classify_schedule(request):
+    """GET: スケジュール設定取得 / POST: スケジュール設定保存"""
+    from .models import ClassifySchedule
+
+    if request.method == 'GET':
+        schedule, _ = ClassifySchedule.objects.get_or_create(user=request.user)
+        return _json_ok({'schedule': _serialize_schedule(schedule)})
+
+    if request.method == 'POST':
+        body = _parse_json_body(request)
+        if isinstance(body, JsonResponse):
+            return body
+
+        is_enabled = bool(body.get('is_enabled', False))
+        try:
+            hour = int(body.get('hour', 8))
+            minute = int(body.get('minute', 0))
+        except (TypeError, ValueError):
+            return _json_error('hour・minute は整数で指定してください')
+        if not (0 <= hour <= 23):
+            return _json_error('hour は 0〜23 で指定してください')
+        if not (0 <= minute <= 59):
+            return _json_error('minute は 0〜59 で指定してください')
+
+        raw_wd = body.get('weekdays', [])
+        if not isinstance(raw_wd, list):
+            return _json_error('weekdays はリストで指定してください')
+        weekdays = sorted({int(w) for w in raw_wd if isinstance(w, (int, float)) and 0 <= int(w) <= 6})
+
+        schedule, _ = ClassifySchedule.objects.get_or_create(user=request.user)
+        schedule.is_enabled = is_enabled
+        schedule.hour = hour
+        schedule.minute = minute
+        schedule.weekdays = weekdays
+        schedule.save()
+        return _json_ok({'schedule': _serialize_schedule(schedule)})
+
+    return _json_error('許可されていないメソッドです', 405)

@@ -228,3 +228,45 @@ class EmailClassification(models.Model):
 
     def __str__(self):
         return f'[{self.category}] {self.subject}'
+
+
+class ClassifySchedule(models.Model):
+    """AI仕分け自動実行スケジュール（ユーザーごとに1レコード）"""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='classify_schedule',
+        verbose_name='ユーザー',
+    )
+    is_enabled = models.BooleanField(default=False, verbose_name='有効')
+    hour = models.IntegerField(default=8, verbose_name='実行時（時）')
+    minute = models.IntegerField(default=0, verbose_name='実行時（分）')
+    # 空リスト=毎日、[0,1,2,3,4]=月〜金
+    weekdays = models.JSONField(default=list, blank=True, verbose_name='曜日指定（空=毎日）')
+    last_run_at = models.DateTimeField(null=True, blank=True, verbose_name='最終実行日時')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'AI仕分けスケジュール'
+        verbose_name_plural = 'AI仕分けスケジュール'
+
+    def next_run_at(self):
+        """次回実行予定日時(JST aware)を計算して返す"""
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+        tz = ZoneInfo('Asia/Tokyo')
+        now = datetime.now(tz)
+        candidate = now.replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        if self.weekdays:
+            for _ in range(7):
+                if candidate.weekday() in self.weekdays:
+                    break
+                candidate += timedelta(days=1)
+        return candidate
+
+    def __str__(self):
+        return f'{self.user} - {self.hour:02d}:{self.minute:02d}'
