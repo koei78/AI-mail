@@ -17,6 +17,14 @@ from .imap_client import ImapConnectionError, MailClient, SmtpConnectionError, t
 from .models import EmailClassification, EmailLabel, Label, MailAccount, MailFolder
 from .sync import sync_account
 
+
+def _get_mail_client(account):
+    """アカウント種別に応じてメールクライアントを返す"""
+    if getattr(account, 'auth_type', None) == 'microsoft_oauth2':
+        from .graph_api_client import GraphMailClient
+        return GraphMailClient(account)
+    return MailClient(account)
+
 logger = logging.getLogger(__name__)
 
 ACCOUNT_FIELDS = [
@@ -376,16 +384,12 @@ def api_folder_empty(request, folder_id):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
-        client._imap.select_folder(folder.remote_name)
-        uids = client._imap.search(['ALL'])
-        if uids:
-            client._imap.add_flags(uids, [b'\\Deleted'])
-            client._imap.expunge()
+        client.empty_folder(folder.remote_name)
         client.disconnect_imap()
     except Exception as exc:
-        logger.warning('IMAP一括削除失敗 folder_id=%s: %s', folder_id, exc)
+        logger.warning('フォルダ一括削除失敗 folder_id=%s: %s', folder_id, exc)
         return _json_error(f'削除失敗: {exc}')
 
     folder.unread_count = 0
@@ -408,7 +412,7 @@ def api_emails(request):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         all_uids = sorted(client.get_folder_uids(folder.remote_name), reverse=True)
         total = len(all_uids)
@@ -449,7 +453,7 @@ def api_email_detail(request, uid):
 
     if request.method == 'GET':
         try:
-            client = MailClient(folder.account)
+            client = _get_mail_client(folder.account)
             client.connect_imap()
             summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
             if not summary_list:
@@ -484,7 +488,7 @@ def api_email_detail(request, uid):
     if request.method == 'DELETE':
         is_trash = folder.folder_type == 'trash'
         try:
-            client = MailClient(folder.account)
+            client = _get_mail_client(folder.account)
             client.connect_imap()
             if is_trash:
                 client.delete_email(uid, folder.remote_name)
@@ -521,7 +525,7 @@ def api_attachment(request, uid, index):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         att = client.fetch_attachment(uid, folder.remote_name, index)
         client.disconnect_imap()
@@ -552,7 +556,7 @@ def api_email_read(request, uid):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         client.mark_as_read(uid, folder.remote_name)
         client.disconnect_imap()
@@ -580,7 +584,7 @@ def api_email_unread(request, uid):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         client.mark_as_unread(uid, folder.remote_name)
         client.disconnect_imap()
@@ -608,17 +612,9 @@ def api_email_star(request, uid):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
-        client._imap.select_folder(folder.remote_name)
-        fetch_data = client._imap.fetch([uid], ['FLAGS'])
-        flags = fetch_data.get(uid, {}).get(b'FLAGS', [])
-        if b'\\Flagged' in flags:
-            client._imap.remove_flags([uid], [b'\\Flagged'])
-            is_starred = False
-        else:
-            client._imap.add_flags([uid], [b'\\Flagged'])
-            is_starred = True
+        is_starred = client.toggle_star(uid, folder.remote_name)
         client.disconnect_imap()
     except Exception as e:
         return _json_error(f'スター操作失敗: {e}')
@@ -655,7 +651,7 @@ def api_email_move(request, uid):
         return _json_error('移動先フォルダが見つかりません', 404)
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         client.move_email(uid, folder.remote_name, target_folder.remote_name)
         client.disconnect_imap()
@@ -727,7 +723,7 @@ def api_email_label(request, uid, label_id):
 
     # メッセージIDをIMAPから取得（EmailLabelのキーとして使用）
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
         client.disconnect_imap()
@@ -773,7 +769,7 @@ def api_search(request):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         uids = client.search_emails(folder.remote_name, query)
         if not uids:
@@ -852,7 +848,7 @@ def api_send(request):
     save_to_sent = sent_folder.remote_name if sent_folder else None
 
     try:
-        client = MailClient(account)
+        client = _get_mail_client(account)
         client.send_email(
             to=to,
             subject=subject,
@@ -903,7 +899,7 @@ def api_reply(request, uid):
 
     # IMAPから返信元メール情報を取得
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
         if not summary_list:
@@ -964,7 +960,7 @@ def api_forward(request, uid):
 
     # IMAPから転送元メール情報を取得
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
         if not summary_list:
@@ -1084,7 +1080,7 @@ def api_ai_reply(request, uid):
         return folder
 
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         body_data = client.fetch_email_body(uid, folder.remote_name)
         client.disconnect_imap()
@@ -1163,7 +1159,7 @@ def api_ai_chat(request, uid):
 
     # メール内容を文脈として取得
     try:
-        client = MailClient(folder.account)
+        client = _get_mail_client(folder.account)
         client.connect_imap()
         summary_list = client.fetch_emails_by_uids(folder.remote_name, [uid])
         body_data = client.fetch_email_body(uid, folder.remote_name)
@@ -1263,6 +1259,8 @@ def gmail_oauth_start(request):
         ],
         redirect_uri=_settings.GOOGLE_REDIRECT_URI,
     )
+    # client_secret を持つ confidential client なので PKCE は不要
+    flow.autogenerate_code_verifier = False
     auth_url, state = flow.authorization_url(
         access_type='offline',
         prompt='consent',
@@ -1387,6 +1385,157 @@ def gmail_oauth_callback(request):
 
 
 # =============================
+# Outlook OAuth2
+# =============================
+
+@login_required
+def outlook_oauth_start(request):
+    """Outlook OAuth2認証を開始する（Microsoftの認証ページへリダイレクト）"""
+    import secrets
+    from urllib.parse import urlencode
+    from django.conf import settings as _settings
+    from django.http import HttpResponseRedirect
+
+    if not _settings.MICROSOFT_CLIENT_ID or not _settings.MICROSOFT_CLIENT_SECRET:
+        from django.contrib import messages
+        messages.error(request, 'Microsoft OAuth2の設定が不足しています。管理者に連絡してください。')
+        return redirect('mailer:setup')
+
+    state = secrets.token_urlsafe(32)
+    redirect_uri = request.build_absolute_uri('/mail/oauth/outlook/callback/')
+    request.session['outlook_oauth_state'] = state
+    request.session['outlook_oauth_redirect_uri'] = redirect_uri
+
+    params = {
+        'client_id': _settings.MICROSOFT_CLIENT_ID,
+        'response_type': 'code',
+        'redirect_uri': redirect_uri,
+        'scope': 'Mail.Read Mail.ReadWrite Mail.Send offline_access openid email profile',
+        'state': state,
+        'response_mode': 'query',
+    }
+    auth_url = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' + urlencode(params)
+    logger.info('Outlook auth_url: %s', auth_url)
+    return HttpResponseRedirect(auth_url)
+
+
+@csrf_exempt
+def outlook_oauth_callback(request):
+    """Outlook OAuth2コールバック処理（Microsoft外部リダイレクト受信）"""
+    if not request.user.is_authenticated:
+        from urllib.parse import urlencode
+        next_url = request.get_full_path()
+        return redirect(f'/accounts/login/?next={next_url}')
+
+    import requests as _requests
+    from django.conf import settings as _settings
+
+    error = request.GET.get('error')
+    if error:
+        return redirect(f'/mail/setup/?error={error}')
+
+    state = request.GET.get('state')
+    if not state:
+        return redirect('/mail/setup/?error=no_state')
+
+    # start時にセッションに保存した redirect_uri を使う（ポート動的対応）
+    redirect_uri = request.session.get(
+        'outlook_oauth_redirect_uri',
+        request.build_absolute_uri('/mail/oauth/outlook/callback/'),
+    )
+
+    try:
+        token_resp = _requests.post(
+            'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            data={
+                'client_id': _settings.MICROSOFT_CLIENT_ID,
+                'client_secret': _settings.MICROSOFT_CLIENT_SECRET,
+                'code': request.GET.get('code'),
+                'redirect_uri': redirect_uri,
+                'grant_type': 'authorization_code',
+                'scope': 'Mail.Read Mail.ReadWrite Mail.Send offline_access openid email profile',
+            },
+            timeout=15,
+        )
+        result = token_resp.json()
+    except Exception as e:
+        logger.error('Outlook OAuth2トークン取得エラー: %s', e)
+        return redirect('/mail/setup/?error=token_error')
+
+    if 'access_token' not in result:
+        err_detail = result.get('error_description') or result.get('error') or str(result)
+        logger.error('Outlookトークン取得失敗: %s', err_detail)
+        return redirect('/mail/setup/?error=token_error')
+
+
+    refresh_token = result.get('refresh_token', '')
+
+    # id_token（JWT）からユーザー情報を取得
+    try:
+        import base64, json as _json
+
+        def _decode_jwt(token):
+            payload_b64 = token.split('.')[1]
+            payload_b64 += '=' * (4 - len(payload_b64) % 4)
+            return _json.loads(base64.urlsafe_b64decode(payload_b64))
+
+        id_token = result.get('id_token', '')
+        claims = _decode_jwt(id_token) if id_token else {}
+        email = claims.get('preferred_username') or claims.get('email') or claims.get('upn', '')
+        name = claims.get('name', '')
+    except Exception as e:
+        logger.error('id_tokenデコードエラー: %s', e)
+        email = ''
+        name = ''
+
+    if not email:
+        return redirect('/mail/setup/?error=no_email')
+
+    # MailAccount を作成または更新
+    account, created = MailAccount.objects.get_or_create(
+        user=request.user,
+        email_address=email,
+        defaults={
+            'display_name': name,
+            'imap_host': 'imap.outlook.com',
+            'imap_port': 993,
+            'smtp_host': 'smtp.office365.com',
+            'smtp_port': 587,
+            'username': email,
+            'use_ssl': True,
+            'ssl_verify': True,
+            'auth_type': 'microsoft_oauth2',
+            'is_active': True,
+        },
+    )
+
+    if refresh_token:
+        account.set_refresh_token(refresh_token)
+    account.auth_type = 'microsoft_oauth2'
+    account.display_name = name or account.display_name
+    account.imap_host = 'imap.outlook.com'
+    account.imap_port = 993
+    account.smtp_host = 'smtp.office365.com'
+    account.smtp_port = 587
+    account.username = email
+    account.use_ssl = True
+    account.is_active = True
+
+    if not account.password_encrypted:
+        account.set_password('oauth2_no_password')
+
+    account.save()
+
+    # フォルダ同期
+    try:
+        Thread(target=sync_account, args=(account.id,), daemon=True).start()
+    except Exception as e:
+        logger.warning('同期開始エラー: %s', e)
+
+    return redirect('mailer:index')
+
+
+# =============================
 # AI メール分類ページ
 # =============================
 
@@ -1444,14 +1593,26 @@ def api_classify_emails(request):
     if request.method != 'POST':
         return _json_error('許可されていないメソッドです', 405)
 
+    try:
+        result = _classify_emails_for_user(request.user.id)
+    except ValueError as exc:
+        return _json_error(str(exc), 500)
+    if result.get('no_accounts'):
+        return _json_error('メールアカウントが登録されていません')
+    return _json_ok(result)
+
+
+def _classify_emails_for_user(user_id: int) -> dict:
+    """指定ユーザーの受信トレイに対してAI分類を実行して保存する。
+    api_classify_emails と Celery タスクの両方から呼ばれる純粋関数。"""
     import os as _os
     api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
     if not api_key:
-        return _json_error('OPENAI_API_KEY が設定されていません', 500)
+        raise ValueError('OPENAI_API_KEY が設定されていません')
 
-    accounts = list(MailAccount.objects.filter(user=request.user, is_active=True))
+    accounts = list(MailAccount.objects.filter(user_id=user_id, is_active=True))
     if not accounts:
-        return _json_error('メールアカウントが登録されていません')
+        return {'classified': 0, 'message': 'アカウントなし', 'errors': [], 'no_accounts': True}
 
     # 分類対象メールを収集（各アカウントの受信トレイから）
     to_classify = []  # [(account, folder, uid, subject, sender, message_id), ...]
@@ -1470,7 +1631,7 @@ def api_classify_emails(request):
         )
 
         try:
-            client = MailClient(account)
+            client = _get_mail_client(account)
             client.connect_imap()
             all_uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)
             # 直近50件を対象に未分類のものを抽出
@@ -1491,7 +1652,7 @@ def api_classify_emails(request):
             errors.append(str(exc))
 
     if not to_classify:
-        return _json_ok({'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors})
+        return {'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors}
 
     # OpenAI でバッチ分類（20件ずつ）
     import openai
@@ -1572,8 +1733,60 @@ def api_classify_emails(request):
             except Exception as exc:
                 logger.warning('分類保存失敗 uid=%s: %s', uid, exc)
 
-    return _json_ok({
+    return {
         'classified': saved_count,
         'message': f'{saved_count}件のメールを分類しました',
         'errors': errors,
-    })
+    }
+
+
+def _serialize_schedule(schedule) -> dict:
+    return {
+        'is_enabled': schedule.is_enabled,
+        'hour': schedule.hour,
+        'minute': schedule.minute,
+        'weekdays': schedule.weekdays,
+        'last_run_at': schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+        'next_run_at': schedule.next_run_at().isoformat() if schedule.is_enabled else None,
+    }
+
+
+@login_required
+def api_classify_schedule(request):
+    """GET: スケジュール設定取得 / POST: スケジュール設定保存"""
+    from .models import ClassifySchedule
+
+    if request.method == 'GET':
+        schedule, _ = ClassifySchedule.objects.get_or_create(user=request.user)
+        return _json_ok({'schedule': _serialize_schedule(schedule)})
+
+    if request.method == 'POST':
+        body = _parse_json_body(request)
+        if isinstance(body, JsonResponse):
+            return body
+
+        is_enabled = bool(body.get('is_enabled', False))
+        try:
+            hour = int(body.get('hour', 8))
+            minute = int(body.get('minute', 0))
+        except (TypeError, ValueError):
+            return _json_error('hour・minute は整数で指定してください')
+        if not (0 <= hour <= 23):
+            return _json_error('hour は 0〜23 で指定してください')
+        if not (0 <= minute <= 59):
+            return _json_error('minute は 0〜59 で指定してください')
+
+        raw_wd = body.get('weekdays', [])
+        if not isinstance(raw_wd, list):
+            return _json_error('weekdays はリストで指定してください')
+        weekdays = sorted({int(w) for w in raw_wd if isinstance(w, (int, float)) and 0 <= int(w) <= 6})
+
+        schedule, _ = ClassifySchedule.objects.get_or_create(user=request.user)
+        schedule.is_enabled = is_enabled
+        schedule.hour = hour
+        schedule.minute = minute
+        schedule.weekdays = weekdays
+        schedule.save()
+        return _json_ok({'schedule': _serialize_schedule(schedule)})
+
+    return _json_error('許可されていないメソッドです', 405)

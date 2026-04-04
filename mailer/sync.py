@@ -12,6 +12,13 @@ from django.utils import timezone as django_timezone
 from .imap_client import ImapConnectionError, MailClient
 from .models import MailAccount, MailFolder
 
+
+def _get_client_for_account(account):
+    if getattr(account, 'auth_type', None) == 'microsoft_oauth2':
+        from .graph_api_client import GraphMailClient, GraphConnectionError
+        return GraphMailClient(account), GraphConnectionError
+    return MailClient(account), ImapConnectionError
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,7 +32,7 @@ def sync_account(account_id: int) -> dict:
     except MailAccount.DoesNotExist:
         return {'updated': 0, 'errors': [f'アカウントID {account_id} が見つかりません']}
 
-    client = MailClient(account)
+    client, ConnectionError = _get_client_for_account(account)
     result = {'updated': 0, 'errors': []}
 
     try:
@@ -53,7 +60,7 @@ def sync_account(account_id: int) -> dict:
         account.last_synced_at = django_timezone.now()
         account.save(update_fields=['last_synced_at'])
 
-    except ImapConnectionError as e:
+    except ConnectionError as e:
         result['errors'].append(str(e))
         logger.error('アカウント %s の同期エラー: %s', account_id, e)
     finally:
@@ -72,7 +79,7 @@ def sync_folder(account_id: int, folder_id: int) -> dict:
     except MailFolder.DoesNotExist:
         return {'updated': 0, 'errors': [f'フォルダID {folder_id} が見つかりません']}
 
-    client = MailClient(account)
+    client, ConnectionError = _get_client_for_account(account)
     result = {'updated': 0, 'errors': []}
 
     try:
@@ -82,7 +89,7 @@ def sync_folder(account_id: int, folder_id: int) -> dict:
             db_folder.unread_count = unread
             db_folder.save(update_fields=['unread_count'])
             result['updated'] = 1
-    except ImapConnectionError as e:
+    except ConnectionError as e:
         result['errors'].append(str(e))
         logger.error('フォルダ %s の同期エラー: %s', folder_id, e)
     finally:
