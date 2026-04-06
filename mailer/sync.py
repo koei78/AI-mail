@@ -40,7 +40,7 @@ def sync_account(account_id: int) -> dict:
 
         remote_folders = client.fetch_folders()
         for folder_data in remote_folders:
-            folder, _ = MailFolder.objects.get_or_create(
+            folder, _ = MailFolder.objects.update_or_create(
                 account=account,
                 remote_name=folder_data['remote_name'],
                 defaults={

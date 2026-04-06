@@ -76,14 +76,14 @@ tbody td{padding:12px 16px;font-size:.88rem;vertical-align:middle}
 /* ===== カテゴリバッジ ===== */
 .badge{
   display:inline-flex;align-items:center;justify-content:center;
-  padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:700;
-  white-space:nowrap;min-width:40px;
+  padding:2px 8px;border-radius:8px;font-size:.75rem;font-weight:700;
+  white-space:nowrap;background:#fff;
 }
-.badge-A{background:#f44336;color:#fff}
-.badge-B{background:#ff9800;color:#fff}
-.badge-C{background:#4caf50;color:#fff}
+.badge-A{color:#f44336;border:1px solid #f44336}
+.badge-B{color:#ff9800;border:1px solid #ff9800}
+.badge-C{color:#4caf50;border:1px solid #4caf50}
 
-/* ===== タイトル列 ===== */
+/* ===== 列スタイル ===== */
 .col-title{max-width:280px}
 .title-text{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
 .col-sender{color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
@@ -100,7 +100,7 @@ tbody td{padding:12px 16px;font-size:.88rem;vertical-align:middle}
 .reply-btn:hover{background:#e3f2fd}
 
 /* ===== 空状態 ===== */
-#empty-row td{text-align:center;padding:48px 16px;color:var(--text-sub)}
+#empty-msg{text-align:center;padding:48px 16px;color:var(--text-sub)}
 .empty-icon{font-size:2rem;display:block;margin-bottom:8px}
 
 /* ===== フッター ===== */
@@ -198,39 +198,24 @@ tbody td{padding:12px 16px;font-size:.88rem;vertical-align:middle}
             <th data-col="title">件名 <span class="sort-icon">↕</span></th>
             <th data-col="sender">送信者 <span class="sort-icon">↕</span></th>
             <th data-col="summary">要約</th>
-            <th data-col="category" style="width:90px">カテゴリ <span class="sort-icon">↓</span></th>
+            <th data-col="category" style="width:110px">カテゴリ <span class="sort-icon">↓</span></th>
             <th class="col-action">操作</th>
           </tr>
         </thead>
         <tbody id="mail-tbody">
-          <!-- ローディング行 -->
-          <tr id="loading-row">
+          <tr id="loading-row" style="display:none">
             <td colspan="5" style="text-align:center;padding:32px;color:#757575">
               <span class="spinner"></span>AIが分析中です…
             </td>
           </tr>
-          <!-- 初期データ（サーバーレンダリング） -->
-          {% if classifications %}
-            {% for c in classifications %}
-            <tr data-uid="{{ c.uid }}" data-folder="{{ c.folder_id }}" data-cat="{{ c.category }}"
-                onclick="goReply({{ c.uid }}, {{ c.folder_id }})">
-              <td class="col-title"><div class="title-text" title="{{ c.subject }}">{{ c.subject|default:"(件名なし)" }}</div></td>
-              <td><div class="col-sender" title="{{ c.sender }}">{{ c.sender|default:"(不明)" }}</div></td>
-              <td><div class="col-summary" title="{{ c.summary }}">{{ c.summary|default:"" }}</div></td>
-              <td><span class="badge badge-{{ c.category }}">{{ c.category }}</span></td>
-              <td class="col-action" onclick="event.stopPropagation()">
-                <a class="reply-btn" href="/mail/?auto_open_uid={{ c.uid }}&auto_open_folder={{ c.folder_id }}&auto_action=reply">返信</a>
-              </td>
-            </tr>
-            {% endfor %}
-          {% else %}
-            <tr id="empty-row">
-              <td colspan="5">
+          <tr id="empty-row" style="display:none">
+            <td colspan="5">
+              <div id="empty-msg">
                 <span class="empty-icon">📭</span>
                 まだ分類結果がありません。「カテゴリ分類開始」を押してください。
-              </td>
-            </tr>
-          {% endif %}
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -254,9 +239,10 @@ tbody td{padding:12px 16px;font-size:.88rem;vertical-align:middle}
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
-function goReply(uid, folderId) {
-  window.location.href = `/mail/?auto_open_uid=${uid}&auto_open_folder=${folderId}&auto_action=reply`;
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
 
 function toast(msg, type = 'info') {
   const el = document.getElementById('toast');
@@ -266,10 +252,6 @@ function toast(msg, type = 'info') {
   el._t = setTimeout(() => el.className = '', 3500);
 }
 
-function esc(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 // ソート
 let _sortCol = 'category', _sortAsc = true;
 document.querySelectorAll('thead th[data-col]').forEach(th => {
@@ -277,7 +259,6 @@ document.querySelectorAll('thead th[data-col]').forEach(th => {
     const col = th.dataset.col;
     if (_sortCol === col) _sortAsc = !_sortAsc;
     else { _sortCol = col; _sortAsc = col !== 'category'; }
-    // sort-icon を更新
     document.querySelectorAll('thead th .sort-icon').forEach(ic => ic.textContent = '↕');
     th.querySelector('.sort-icon').textContent = _sortAsc ? '↓' : '↑';
     sortTable();
@@ -298,23 +279,54 @@ function sortTable() {
   rows.forEach(r => tbody.appendChild(r));
 }
 
+function renderRows(items) {
+  const tbody = document.getElementById('mail-tbody');
+  tbody.querySelectorAll('tr[data-uid]').forEach(r => r.remove());
+  const emptyRow = document.getElementById('empty-row');
+
+  if (!items || !items.length) {
+    emptyRow.style.display = '';
+    document.getElementById('footer-count').textContent = '';
+    return;
+  }
+  emptyRow.style.display = 'none';
+
+  const sorted = [...items].sort((a, b) => a.category.localeCompare(b.category));
+  sorted.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.dataset.uid = c.uid;
+    tr.dataset.folder = c.folder_id;
+    tr.dataset.cat = c.category;
+    tr.addEventListener('click', () => window.location.href = `/mail/?auto_open_uid=${c.uid}&auto_open_folder=${c.folder_id}`);
+    tr.innerHTML = `
+      <td class="col-title"><div class="title-text" title="${esc(c.subject)}">${esc(c.subject)||'(件名なし)'}</div></td>
+      <td><div class="col-sender" title="${esc(c.sender)}">${esc(c.sender)||'(不明)'}</div></td>
+      <td><div class="col-summary" title="${esc(c.summary)}">${esc(c.summary)||''}</div></td>
+      <td><span class="badge badge-${esc(c.category)}">優先度:${esc(c.category)}</span></td>
+      <td class="col-action" onclick="event.stopPropagation()">
+        <a class="reply-btn" href="/mail/?auto_open_uid=${c.uid}&auto_open_folder=${c.folder_id}&auto_action=reply">
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>返信
+        </a>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('footer-count').textContent = items.length + '件';
+}
+
+async function loadClassifications() {
+  const res = await fetch('/mail/api/classify/');
+  const data = await res.json();
+  if (data.ok) renderRows(data.classifications);
+}
+loadClassifications();
+
 // リセット
 document.getElementById('btn-reset').addEventListener('click', async () => {
   if (!confirm('分類結果をすべてリセットします。次回「分類開始」を押すと全メールを再分類します。よろしいですか？')) return;
-  const res = await fetch('/mail/api/classify/', {
-    method: 'DELETE',
-    headers: { 'X-CSRFToken': CSRF },
-  });
+  const res = await fetch('/mail/api/classify/', { method: 'DELETE', headers: { 'X-CSRFToken': CSRF } });
   const data = await res.json();
-  if (data.ok) {
-    document.querySelectorAll('#mail-tbody tr[data-uid]').forEach(r => r.remove());
-    const empty = document.getElementById('empty-row');
-    if (empty) empty.style.display = '';
-    document.getElementById('footer-count').textContent = '';
-    toast('リセットしました', 'success');
-  } else {
-    toast('リセット失敗', 'error');
-  }
+  if (data.ok) { renderRows([]); toast('リセットしました', 'success'); }
+  else { toast('リセット失敗', 'error'); }
 });
 
 // 分類実行
@@ -333,8 +345,6 @@ document.getElementById('btn-classify').addEventListener('click', async () => {
     const data = await res.json();
     if (!data.ok) { toast('分類失敗: ' + (data.error || '不明'), 'error'); return; }
     toast(data.message, 'success');
-
-    // 最新一覧を取得して再描画
     const listRes = await fetch('/mail/api/classify/');
     const listData = await listRes.json();
     if (listData.ok) renderRows(listData.classifications);
@@ -345,44 +355,6 @@ document.getElementById('btn-classify').addEventListener('click', async () => {
     loadRow.style.display = 'none';
   }
 });
-
-function renderRows(items) {
-  const tbody = document.getElementById('mail-tbody');
-  // 既存行（data-uid付き）を削除
-  tbody.querySelectorAll('tr[data-uid]').forEach(r => r.remove());
-  const emptyRow = document.getElementById('empty-row');
-
-  if (!items || !items.length) {
-    if (emptyRow) emptyRow.style.display = '';
-    document.getElementById('footer-count').textContent = '';
-    return;
-  }
-  if (emptyRow) emptyRow.style.display = 'none';
-
-  // A→B→C 順で描画
-  const sorted = [...items].sort((a, b) => a.category.localeCompare(b.category));
-  sorted.forEach(c => {
-    const tr = document.createElement('tr');
-    tr.dataset.uid = c.uid;
-    tr.dataset.folder = c.folder_id;
-    tr.dataset.cat = c.category;
-    tr.style.cursor = 'pointer';
-    tr.addEventListener('click', () => goReply(c.uid, c.folder_id));
-    tr.addEventListener('mouseenter', () => tr.style.background = '#e3f2fd');
-    tr.addEventListener('mouseleave', () => tr.style.background = '');
-    tr.innerHTML = `
-      <td class="col-title"><div class="title-text" title="${esc(c.subject)}">${esc(c.subject)||'(件名なし)'}</div></td>
-      <td><div class="col-sender" title="${esc(c.sender)}">${esc(c.sender)||'(不明)'}</div></td>
-      <td><div class="col-summary" title="${esc(c.summary)}">${esc(c.summary)||''}</div></td>
-      <td><span class="badge badge-${esc(c.category)}">${esc(c.category)}</span></td>
-      <td class="col-action">
-        <a class="reply-btn" href="/mail/?auto_open_uid=${c.uid}&auto_open_folder=${c.folder_id}&auto_action=reply"
-           onclick="event.stopPropagation()">返信</a>
-      </td>`;
-    tbody.appendChild(tr);
-  });
-  document.getElementById('footer-count').textContent = items.length + '件';
-}
 
 // ===== スケジュール設定 =====
 const WD_LABELS = ['月', '火', '水', '木', '金', '土', '日'];

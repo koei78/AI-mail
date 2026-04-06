@@ -97,17 +97,19 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 .sb-new-btn{
   display:flex;align-items:center;gap:6px;
   margin:8px 10px 6px;padding:6px 12px;
-  background:transparent;border:1px solid var(--blue);
-  border-radius:var(--radius);color:var(--blue);font-size:.82rem;font-weight:600;
+  border:none;
+  border-radius:var(--radius);color:white;font-size:.82rem;font-weight:600;
+  background: var(--blue);
   cursor:pointer;transition:background .12s;
 }
-.sb-new-btn:hover{background:var(--blue-bg)}
+.sb-new-btn:hover{background:rgb(119, 173, 253)}
 .sb-new-btn svg{flex-shrink:0}
 .sb-section-label{
   padding:8px 14px 3px;font-size:.68rem;font-weight:600;
   color:var(--text-light);letter-spacing:.05em;text-transform:uppercase;
 }
 .folder-item{
+  margin: 10px 10px;
   display:flex;align-items:center;gap:8px;
   padding:6px 10px 6px 14px;cursor:pointer;
   border-radius:0;transition:background .1s;user-select:none;
@@ -161,22 +163,33 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   transition:background .12s;display:flex;align-items:center;gap:4px;
 }
 .lp-sort-btn:hover{background:var(--hover)}
-#email-list{flex:1;overflow-y:auto}
+#email-list{
+  flex:1;
+  overflow-y:auto;
+  background: rgb(245, 246, 251);
+}
 #email-list::-webkit-scrollbar{width:6px}
 #email-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
 /* メール行 */
 .mail-row{
+  margin: 10px 10px;
   display:flex;align-items:flex-start;gap:8px;
   padding:7px 10px 7px 8px;border-bottom:1px solid var(--border);
   cursor:pointer;position:relative;transition:background .1s;
   border-left:3px solid transparent;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 2px 2px 4px rgb(212, 212, 212);
 }
 .mail-row:hover{background:var(--hover)}
 .mail-row.active{background:var(--blue-bg);border-left-color:var(--blue)}
 .mail-row.unread .mr-from{font-weight:700}
 .mail-row.unread .mr-subject{font-weight:600;color:var(--text)}
-.mail-row.unread{border-left-color:var(--unread-dot)}
+.mail-row.unread{
+  border-left-color:var(--unread-dot);
+  box-shadow: 2px 2px 4px gray;
+}
 .mail-row.active.unread{border-left-color:var(--blue)}
 .mr-check{
   width:18px;height:18px;border:1px solid var(--border);border-radius:3px;
@@ -190,9 +203,23 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 .mr-top{display:flex;align-items:center;gap:6px}
 .mr-from{font-size:.82rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-sub)}
 .mr-time{font-size:.68rem;color:var(--text-light);white-space:nowrap;flex-shrink:0}
-.mr-subject{font-size:.8rem;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mr-subject-wrap{margin-top:1px;min-width:0}
+.mr-subject{font-size:.8rem;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-priority-badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:8px;font-size:.75rem;font-weight:700;flex-shrink:0;background:#fff}
+.mr-priority-badge-A{color:#f44336;border:1px solid #f44336}
+.mr-priority-badge-B{color:#ff9800;border:1px solid #ff9800}
+.mr-priority-badge-C{color:#4caf50;border:1px solid #4caf50}
 .mr-preview{font-size:.74rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .mr-icons{display:flex;align-items:center;gap:4px;margin-top:3px}
+.mr-color-bar{
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 28px;
+  border-radius: 2px 0 0 2px;
+}
 .star-btn{
   background:none;border:none;cursor:pointer;padding:2px;
   color:var(--text-light);line-height:1;transition:color .12s;
@@ -251,6 +278,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 .clp-col-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 .clp-col-sub{color:var(--text-sub);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
 .clp-col-summary{color:var(--text-sub);font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clp-col-account{color:var(--text-sub);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
 .clp-reply-btn{
   display:inline-flex;align-items:center;gap:4px;
   padding:3px 10px;border:1px solid var(--blue);color:var(--blue);
@@ -763,7 +791,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   <!-- ===== メール一覧ペイン ===== -->
   <div id="list-pane">
     <div class="lp-header">
-      <div class="lp-title" id="folder-title">受信トｊｊｊレイ</div>
+      <div class="lp-title" id="folder-title">受信トレイ</div>
       <span class="lp-count" id="mail-count"></span>
       <button class="lp-sort-btn" id="btn-empty-trash" style="display:none;color:var(--red)" title="ゴミ箱を空にする">
         <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -944,6 +972,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
           <thead>
             <tr>
               <th>件名</th>
+              <th style="width:160px">アカウント</th>
               <th style="width:80px">カテゴリ</th>
               <th style="width:60px">操作</th>
             </tr>
@@ -1316,7 +1345,9 @@ function renderEmailList() {
           <span class="mr-from">${esc(e.from_address.replace(/<[^>]+>/,'').trim() || e.from_address)}</span>
           <span class="mr-time">${fmtDate(e.received_at)}</span>
         </div>
-        <div class="mr-subject">${esc(e.subject || '（件名なし）')}</div>
+        <div class="mr-subject-wrap">
+          <span class="mr-subject">${esc(e.subject || '（件名なし）')}</span>
+        </div>
         <div class="mr-preview">${esc(e.preview || '')}</div>
         <div class="mr-icons">
           <button class="star-btn${e.is_starred?' on':''}" data-eid="${e.uid}" title="スター">
@@ -1325,10 +1356,12 @@ function renderEmailList() {
               : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
             }
           </button>
+          ${e.category ? `<span class="mr-priority-badge mr-priority-badge-${esc(e.category)}">優先度:${esc(e.category)}</span>` : ''}
           ${e.has_attachments ? '<span class="attach-icon" title="添付あり"><svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>' : ''}
           ${(e.labels||[]).map(l=>`<span class="label-chip" style="background:${esc(l.color)}">${esc(l.name)}</span>`).join('')}
         </div>
       </div>
+      <div class="mr-color-bar" style="background-color:${ {A:'#f44336',B:'#ff9800',C:'#4caf50'}[e.category] || col }"></div>
     </div>`;
   }).join('');
 
@@ -2207,7 +2240,7 @@ function hideClassifyPane() {
 
 async function loadClassifications() {
   const tbody = $('clp-tbody');
-  tbody.innerHTML = '<tr><td colspan="3" class="clp-loading"><span class="clp-spinner"></span>読み込み中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="4" class="clp-loading"><span class="clp-spinner"></span>読み込み中…</td></tr>';
   const d = await api('/mail/api/classify/');
   if (!d.ok) { tbody.innerHTML = '<tr><td colspan="3" class="clp-empty">読み込み失敗</td></tr>'; return; }
   renderClpRows(d.classifications);
@@ -2217,7 +2250,7 @@ function renderClpRows(items) {
   const tbody = $('clp-tbody');
   const summary = $('clp-summary');
   if (!items || !items.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="clp-empty">まだ分類結果がありません。「分類開始」を押してください。</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="clp-empty">まだ分類結果がありません。「分類開始」を押してください。</td></tr>';
     summary.style.display = 'none';
     return;
   }
@@ -2233,6 +2266,7 @@ function renderClpRows(items) {
   tbody.innerHTML = sorted.map(c => `
     <tr onclick="openMailFromClassify(${c.uid},${c.folder_id})">
       <td><div class="clp-col-title" title="${esc(c.subject)}">${esc(c.subject)||'(件名なし)'}</div></td>
+      <td><div class="clp-col-account" title="${esc(c.account_email||'')}">${esc(c.account_email||'')}</div></td>
       <td><span class="clp-badge clp-badge-${esc(c.category)}">${esc(c.category)}</span></td>
       <td onclick="event.stopPropagation()">
         <button class="clp-reply-btn" onclick="openMailFromClassify(${c.uid},${c.folder_id},true)">
@@ -2263,7 +2297,7 @@ $('clp-classify-btn').addEventListener('click', async () => {
   btn.disabled = true;
   const tbody = $('clp-tbody');
   $('clp-summary').style.display = 'none';
-  tbody.innerHTML = '<tr><td colspan="3" class="clp-loading"><span class="clp-spinner"></span>AIが分析中です…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="4" class="clp-loading"><span class="clp-spinner"></span>AIが分析中です…</td></tr>';
   const d = await api('/mail/api/classify/', { method: 'POST' });
   btn.disabled = false;
   if (!d.ok) { toast('分類失敗: ' + (d.error||'不明'), 'error'); loadClassifications(); return; }

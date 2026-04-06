@@ -433,8 +433,18 @@ def api_emails(request):
         ).select_related('label'):
             labels_by_msgid.setdefault(el.message_id, []).append(_serialize_label(el.label))
 
+    # 分類情報を付加
+    classification_by_uid: dict[int, dict] = {}
+    for cls in EmailClassification.objects.filter(
+        account=folder.account, folder=folder, uid__in=page_uids
+    ).values('uid', 'category', 'summary'):
+        classification_by_uid[cls['uid']] = {'category': cls['category'], 'summary': cls['summary']}
+
     data = [
-        _serialize_imap_email(e, folder.id, labels_by_msgid.get(e.get('message_id', ''), []))
+        {
+            **_serialize_imap_email(e, folder.id, labels_by_msgid.get(e.get('message_id', ''), [])),
+            **classification_by_uid.get(e['uid'], {'category': None, 'summary': None}),
+        }
         for e in emails_data
     ]
     return _json_ok({'emails': data, 'total': total, 'page': page, 'per_page': per_page})
@@ -1587,6 +1597,7 @@ def api_classify_emails(request):
                 'folder_id': c.folder_id,
                 'uid': c.uid,
                 'classified_at': c.classified_at.isoformat(),
+                'account_email': c.account.email_address,
             })
         return _json_ok({'classifications': results})
 
