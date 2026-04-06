@@ -1,4 +1,4 @@
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django import forms
 from django.shortcuts import redirect, render
@@ -68,3 +68,9 @@ def register_view(request):
         login(request, user)
         return redirect('/mail/')
     return _render_auth(request, register_form=form)
+
+
+def logout_view(request):
+    """ログアウト処理。リンククリックでも確実にログアウトさせる。"""
+    logout(request)
+    return redirect('/')
