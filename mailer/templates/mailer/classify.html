@@ -344,7 +344,8 @@ document.getElementById('btn-classify').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (!data.ok) { toast('分類失敗: ' + (data.error || '不明'), 'error'); return; }
-    toast(data.message, 'success');
+    const errMsg = data.errors && data.errors.length ? '\n⚠️ ' + data.errors.join('\n⚠️ ') : '';
+    toast(data.message + errMsg, data.errors && data.errors.length ? 'error' : 'success');
     const listRes = await fetch('/mail/api/classify/');
     const listData = await listRes.json();
     if (listData.ok) renderRows(listData.classifications);
