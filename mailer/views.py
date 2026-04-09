@@ -1641,6 +1641,7 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
     for account in accounts:
         inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
         if not inbox:
+            errors.append(f'[{account.email_address}] 受信トレイフォルダが見つかりません（フォルダ同期が必要かもしれません）')
             continue
 
         # 既分類済みの UID セットを取得
@@ -1653,19 +1654,33 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
         try:
             client = _get_mail_client(account)
             client.connect_imap()
-            all_uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)
-            # 直近50件を対象に未分類のものを抽出
-            target_uids = [u for u in all_uids[:50] if u not in classified_uids]
-            if target_uids:
-                emails_data = client.fetch_emails_by_uids(inbox.remote_name, target_uids)
-                for em in emails_data:
-                    to_classify.append((
-                        account, inbox,
-                        em.get('uid', 0),
-                        em.get('subject', ''),
-                        em.get('from_address', ''),
-                        em.get('message_id', ''),
-                    ))
+            if hasattr(client, 'fetch_recent_emails_meta'):
+                # Outlook(Graph API): 1回のAPIで最新50件のメタ情報を直接取得
+                # UID→GraphIDキャッシュ解決を経由しない
+                recent_emails = client.fetch_recent_emails_meta(inbox.remote_name, 50)
+                for em in recent_emails:
+                    if em['uid'] not in classified_uids:
+                        to_classify.append((
+                            account, inbox,
+                            em['uid'],
+                            em['subject'],
+                            em['from_address'],
+                            em['message_id'],
+                        ))
+            else:
+                # IMAP/Gmail: IMAP UID は時系列順なので降順ソートで最新50件
+                all_uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)[:50]
+                target_uids = [u for u in all_uids if u not in classified_uids]
+                if target_uids:
+                    emails_data = client.fetch_emails_by_uids(inbox.remote_name, target_uids)
+                    for em in emails_data:
+                        to_classify.append((
+                            account, inbox,
+                            em.get('uid', 0),
+                            em.get('subject', ''),
+                            em.get('from_address', ''),
+                            em.get('message_id', ''),
+                        ))
             client.disconnect_imap()
         except Exception as exc:
             logger.warning('分類用メール取得失敗 account=%s: %s', account.id, exc)

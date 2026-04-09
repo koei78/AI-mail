@@ -669,8 +669,14 @@ document.getElementById('btn-classify').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (!data.ok) { toast('分類失敗: ' + (data.error || '不明'), 'error'); return; }
+<<<<<<< HEAD
     toast(data.message, 'success');
     const listRes = await fetch(classifyApiUrl());
+=======
+    const errMsg = data.errors && data.errors.length ? '\n⚠️ ' + data.errors.join('\n⚠️ ') : '';
+    toast(data.message + errMsg, data.errors && data.errors.length ? 'error' : 'success');
+    const listRes = await fetch('/mail/api/classify/');
+>>>>>>> 6d43a0fe2b206b2a0b0cb908a471d577b678da2a
     const listData = await listRes.json();
     if (listData.ok) renderRows(listData.classifications);
   } catch (e) {

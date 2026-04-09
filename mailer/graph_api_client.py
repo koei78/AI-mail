@@ -188,12 +188,32 @@ class GraphMailClient:
         except GraphConnectionError as e:
             raise GraphConnectionError(f'フォルダ一覧取得エラー: {e}') from e
 
+        # wellKnownName が使えないテナントのために、well-known パスで各フォルダ ID を取得する
+        well_known_ids: dict[str, str] = {}  # folder_type -> folder_id
+        _well_known_api_names = {
+            'inbox': 'inbox',
+            'sentitems': 'sentItems',
+            'drafts': 'drafts',
+            'deleteditems': 'deletedItems',
+            'junkemail': 'junkemail',
+        }
+        for wk_key, wk_api_name in _well_known_api_names.items():
+            try:
+                wk_data = self._get(f'{BASE_URL}/mailFolders/{wk_api_name}')
+                if wk_data.get('id'):
+                    well_known_ids[wk_data['id']] = wk_key
+            except GraphConnectionError:
+                pass
+
         folders = []
         for f in data.get('value', []):
             folder_id = f['id']
             well_known = (f.get('wellKnownName') or '').lower()
             if well_known in _WELL_KNOWN_FOLDER_MAP:
                 display_name, folder_type = _WELL_KNOWN_FOLDER_MAP[well_known]
+            elif folder_id in well_known_ids:
+                wk_key = well_known_ids[folder_id]
+                display_name, folder_type = _WELL_KNOWN_FOLDER_MAP[wk_key]
             else:
                 display_name = f.get('displayName', folder_id)
                 folder_type = 'custom'
@@ -234,6 +254,37 @@ class GraphMailClient:
             return uids
         except GraphConnectionError as e:
             raise GraphConnectionError(f'UID一覧取得エラー: {e}') from e
+
+    def fetch_recent_emails_meta(self, folder_remote_name: str, count: int = 50) -> list[dict]:
+        """
+        最新 count 件のメールメタ情報を1回のAPIで取得して返す（分類用）。
+        UID→GraphIDキャッシュ解決を経由しないためキャッシュ依存がない。
+        戻り値: [{'uid': int, 'message_id': str, 'subject': str, 'from_address': str}, ...]
+        """
+        try:
+            data = self._get(
+                f'{BASE_URL}/mailFolders/{folder_remote_name}/messages',
+                params={
+                    '$select': 'id,subject,from,internetMessageId',
+                    '$top': count,
+                },
+            )
+            emails = []
+            for msg in data.get('value', []):
+                uid = _set_uid_cache(self.account.id, msg['id'])
+                f = msg.get('from', {}).get('emailAddress', {})
+                name = f.get('name', '')
+                addr = f.get('address', '')
+                from_email = f'{name} <{addr}>' if name else addr
+                emails.append({
+                    'uid': uid,
+                    'message_id': msg.get('internetMessageId', ''),
+                    'subject': msg.get('subject') or '（件名なし）',
+                    'from_address': from_email,
+                })
+            return emails
+        except GraphConnectionError as e:
+            raise GraphConnectionError(f'最新メール取得エラー: {e}') from e
 
     def _resolve_graph_id(self, uid: int, folder_remote_name: str) -> str:
         """
