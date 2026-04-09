@@ -1561,14 +1561,8 @@ class ClassifyView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        accounts = MailAccount.objects.filter(user=self.request.user, is_active=True)
-        classifications = (
-            EmailClassification.objects
-            .filter(account__in=accounts)
-            .select_related('account', 'folder')
-            .order_by('category', '-classified_at')
-        )
-        ctx['classifications'] = classifications
+        accounts = list(MailAccount.objects.filter(user=self.request.user, is_active=True))
+        ctx['accounts_json'] = json.dumps([_serialize_account(a) for a in accounts])
         return ctx
 
 
@@ -1577,10 +1571,16 @@ def api_classify_emails(request):
     """POST: 未分類の新着メールをAIで分類して保存 / GET: 分類結果一覧を返す / DELETE: 分類結果を全削除"""
     if request.method == 'DELETE':
         accounts = MailAccount.objects.filter(user=request.user, is_active=True)
+        account_id = request.GET.get('account_id')
+        if account_id:
+            accounts = accounts.filter(id=account_id)
         deleted, _ = EmailClassification.objects.filter(account__in=accounts).delete()
         return _json_ok({'deleted': deleted})
     if request.method == 'GET':
         accounts = MailAccount.objects.filter(user=request.user, is_active=True)
+        account_id = request.GET.get('account_id')
+        if account_id:
+            accounts = accounts.filter(id=account_id)
         results = []
         for c in (
             EmailClassification.objects
@@ -1605,7 +1605,13 @@ def api_classify_emails(request):
         return _json_error('許可されていないメソッドです', 405)
 
     try:
-        result = _classify_emails_for_user(request.user.id)
+        body = json.loads(request.body) if request.body else {}
+    except Exception:
+        body = {}
+    account_id = body.get('account_id') or request.GET.get('account_id')
+
+    try:
+        result = _classify_emails_for_user(request.user.id, account_id=int(account_id) if account_id else None)
     except ValueError as exc:
         return _json_error(str(exc), 500)
     if result.get('no_accounts'):
@@ -1613,7 +1619,7 @@ def api_classify_emails(request):
     return _json_ok(result)
 
 
-def _classify_emails_for_user(user_id: int) -> dict:
+def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> dict:
     """指定ユーザーの受信トレイに対してAI分類を実行して保存する。
     api_classify_emails と Celery タスクの両方から呼ばれる純粋関数。"""
     import os as _os
@@ -1621,7 +1627,10 @@ def _classify_emails_for_user(user_id: int) -> dict:
     if not api_key:
         raise ValueError('OPENAI_API_KEY が設定されていません')
 
-    accounts = list(MailAccount.objects.filter(user_id=user_id, is_active=True))
+    qs = MailAccount.objects.filter(user_id=user_id, is_active=True)
+    if account_id:
+        qs = qs.filter(id=account_id)
+    accounts = list(qs)
     if not accounts:
         return {'classified': 0, 'message': 'アカウントなし', 'errors': [], 'no_accounts': True}
 

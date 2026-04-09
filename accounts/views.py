@@ -6,6 +6,14 @@ from django.shortcuts import redirect, render
 from .models import User
 
 
+class EmailAuthenticationForm(AuthenticationForm):
+    """メールアドレスでログインするフォーム"""
+    username = forms.EmailField(
+        label='メールアドレス',
+        widget=forms.EmailInput(attrs={'autocomplete': 'email', 'placeholder': 'you@example.com'}),
+    )
+
+
 class RegisterForm(UserCreationForm):
     email = forms.EmailField(required=True, label='メールアドレス')
 
@@ -16,7 +24,7 @@ class RegisterForm(UserCreationForm):
 
 def _render_auth(request, login_form=None, register_form=None):
     return render(request, 'registration/auth.html', {
-        'login_form':    login_form    or AuthenticationForm(request),
+        'login_form':    login_form    or EmailAuthenticationForm(request),
         'register_form': register_form or RegisterForm(),
         'next': request.POST.get('next', request.GET.get('next', '/mail/')),
     })
@@ -46,7 +54,7 @@ def login_view(request):
     if request.method != 'POST':
         return redirect(f'/accounts/auth/?next={next_url}')
 
-    form = AuthenticationForm(request, data=request.POST)
+    form = EmailAuthenticationForm(request, data=request.POST)
     if form.is_valid():
         login(request, form.get_user())
         return redirect(next_url)

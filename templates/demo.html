@@ -1,0 +1,777 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>デモ体験 — はやメール</title>
+<style>
+/* ===== リセット & 変数 ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#0078d4;
+  --blue-hover:#106ebe;
+  --blue-light:#deecf9;
+  --blue-bg:#eff6fc;
+  --sidebar-bg:#faf9f8;
+  --sidebar-w:200px;
+  --list-w:290px;
+  --border:#edebe9;
+  --text:#201f1e;
+  --text-sub:#605e5c;
+  --text-light:#a19f9d;
+  --hover:#f3f2f1;
+  --active:#edebe9;
+  --unread-dot:#0078d4;
+  --red:#d13438;
+  --green:#107c10;
+  --shadow:0 3.2px 7.2px rgba(0,0,0,.13),0 .6px 1.8px rgba(0,0,0,.1);
+  --radius:4px;
+  --hdr-h:40px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;color:var(--text);background:#fff}
+
+/* ===== アバター ===== */
+.avatar{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:600;color:#fff;flex-shrink:0;
+  user-select:none;
+}
+
+/* ===== デモバナー ===== */
+#demo-banner{
+  position:fixed;top:0;left:0;right:0;z-index:500;
+  background:linear-gradient(90deg,#0b4fd0,#4f46e5);
+  color:#fff;font-size:.82rem;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:16px;
+  padding:8px 16px;height:36px;
+}
+#demo-banner a.reg-btn{
+  background:#fff;color:#0b4fd0;padding:4px 14px;border-radius:20px;
+  font-weight:700;font-size:.78rem;text-decoration:none;white-space:nowrap;
+  transition:opacity .12s;
+}
+#demo-banner a.reg-btn:hover{opacity:.85}
+#demo-banner a.top-btn{
+  background:rgba(255,255,255,.2);color:#fff;padding:4px 12px;border-radius:20px;
+  font-size:.78rem;text-decoration:none;border:1px solid rgba(255,255,255,.4);
+  transition:opacity .12s;white-space:nowrap;
+}
+#demo-banner a.top-btn:hover{opacity:.85}
+
+/* ===== レイアウト ===== */
+#app{display:flex;flex-direction:column;height:100vh;padding-top:36px}
+
+/* ===== トップバー ===== */
+#topbar{
+  height:var(--hdr-h);background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px 0 0;gap:0;
+  flex-shrink:0;z-index:20;
+}
+.tb-logo{
+  width:var(--sidebar-w);height:100%;
+  display:flex;align-items:center;padding:0 12px;gap:6px;
+  border-right:1px solid var(--border);flex-shrink:0;
+}
+.tb-logo img{height:34px;display:block}
+.tb-search{
+  flex:1;max-width:500px;margin:0 10px;
+  display:flex;align-items:center;background:var(--hover);
+  border:1px solid transparent;border-radius:4px;padding:0 8px;gap:6px;
+  transition:border-color .15s,background .15s;
+}
+.tb-search:focus-within{background:#fff;border-color:var(--blue)}
+.tb-search svg{opacity:.5;flex-shrink:0}
+.tb-search input{
+  flex:1;border:none;background:transparent;font-size:.85rem;outline:none;
+  padding:5px 0;color:var(--text);
+}
+.tb-search input::placeholder{color:var(--text-light)}
+.tb-spacer{flex:1}
+.tb-right{display:flex;align-items:center;gap:4px}
+.tb-icon-btn{
+  width:30px;height:30px;border:none;background:transparent;
+  border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text-sub);transition:background .12s;
+}
+.tb-icon-btn:hover{background:var(--hover)}
+.tb-account-btn{
+  display:flex;align-items:center;gap:8px;
+  border:none;background:transparent;cursor:default;padding:4px 8px;
+  border-radius:var(--radius);margin-left:4px;
+}
+.tb-account-email{font-size:.78rem;color:var(--text-sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== メインエリア ===== */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ===== サイドバー ===== */
+#sidebar{
+  width:var(--sidebar-w);background:var(--sidebar-bg);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;
+}
+.sb-new-btn{
+  display:flex;align-items:center;gap:6px;
+  margin:8px 10px 6px;padding:6px 12px;
+  border:none;
+  border-radius:var(--radius);color:white;font-size:.82rem;font-weight:600;
+  background:var(--blue);
+  cursor:pointer;transition:background .12s;
+}
+.sb-new-btn:hover{background:rgb(119,173,253)}
+.sb-new-btn svg{flex-shrink:0}
+.sb-section-label{
+  padding:8px 14px 3px;font-size:.68rem;font-weight:600;
+  color:var(--text-light);letter-spacing:.05em;text-transform:uppercase;
+}
+.folder-item{
+  margin:10px 10px;
+  display:flex;align-items:center;gap:8px;
+  padding:6px 10px 6px 14px;cursor:pointer;
+  border-radius:0;transition:background .1s;user-select:none;
+  border-left:3px solid transparent;
+}
+.folder-item:hover{background:var(--hover)}
+.folder-item.active{
+  background:var(--blue-light);border-left-color:var(--blue);color:var(--blue);
+}
+.folder-item.active .folder-name{font-weight:600}
+.fi-icon{width:20px;text-align:center;flex-shrink:0}
+.fi-icon svg{display:block;margin:auto}
+.folder-name{flex:1;font-size:.82rem;color:inherit}
+.folder-badge{
+  background:var(--blue);color:#fff;border-radius:10px;
+  padding:1px 6px;font-size:.7rem;font-weight:700;min-width:18px;text-align:center;
+}
+.folder-badge.zero{display:none}
+.sb-footer{
+  margin-top:auto;padding:8px 12px;border-top:1px solid var(--border);
+}
+.sb-sync-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:transparent;border:none;padding:8px 10px;border-radius:var(--radius);
+  font-size:.82rem;color:var(--text-sub);cursor:pointer;transition:background .12s;
+}
+.sb-sync-btn:hover{background:var(--hover)}
+
+/* ===== メール一覧ペイン ===== */
+#list-pane{
+  width:var(--list-w);flex-shrink:0;
+  display:flex;flex-direction:column;overflow:hidden;
+  border-right:1px solid var(--border);background:#fff;
+}
+.lp-header{
+  padding:8px 12px 6px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+.lp-title{font-size:.95rem;font-weight:700;flex:1}
+.lp-count{font-size:.78rem;color:var(--text-light);margin-left:4px}
+.lp-sort-btn{
+  border:none;background:transparent;border-radius:var(--radius);
+  padding:4px 8px;font-size:.78rem;color:var(--text-sub);cursor:pointer;
+  transition:background .12s;display:flex;align-items:center;gap:4px;
+}
+.lp-sort-btn:hover{background:var(--hover)}
+#email-list{
+  flex:1;
+  overflow-y:auto;
+  background:rgb(245,246,251);
+}
+#email-list::-webkit-scrollbar{width:6px}
+#email-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* メール行 */
+.mail-row{
+  margin:10px 10px;
+  display:flex;align-items:flex-start;gap:8px;
+  padding:7px 10px 7px 8px;border-bottom:1px solid var(--border);
+  cursor:pointer;position:relative;transition:background .1s;
+  border-left:3px solid transparent;
+  border-radius:10px;
+  background:white;
+  box-shadow:2px 2px 4px rgb(212,212,212);
+}
+.mail-row:hover{background:var(--hover)}
+.mail-row.active{background:var(--blue-bg);border-left-color:var(--blue)}
+.mail-row.unread .mr-from{font-weight:700}
+.mail-row.unread .mr-subject{font-weight:600;color:var(--text)}
+.mail-row.unread{border-left-color:var(--unread-dot);box-shadow:2px 2px 4px gray}
+.mail-row.active.unread{border-left-color:var(--blue)}
+.mr-body{flex:1;min-width:0}
+.mr-top{display:flex;align-items:center;gap:6px}
+.mr-from{font-size:.82rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-sub)}
+.mr-time{font-size:.68rem;color:var(--text-light);white-space:nowrap;flex-shrink:0}
+.mr-priority-badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 9px;border-radius:12px;font-size:.72rem;font-weight:700;flex-shrink:0;letter-spacing:.03em}
+.mr-priority-badge-A{background:#f44336;color:#fff}
+.mr-priority-badge-B{background:#ff9800;color:#fff}
+.mr-priority-badge-C{background:#4caf50;color:#fff}
+.mr-subject-wrap{margin-top:1px;min-width:0}
+.mr-subject{font-size:.8rem;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-preview{font-size:.74rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+/* ===== 本文ペイン ===== */
+#body-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+
+/* ===== AI分類ペイン ===== */
+#classify-pane{flex:1;display:none;flex-direction:column;overflow:hidden;background:#f0f2f5}
+#classify-pane.active{display:flex}
+.clp-header{
+  display:flex;align-items:center;gap:8px;padding:10px 16px;
+  background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.clp-title{font-size:.95rem;font-weight:700;flex:1}
+.clp-btn{
+  display:flex;align-items:center;gap:5px;padding:6px 14px;
+  background:var(--blue);color:#fff;border:none;border-radius:var(--radius);
+  font-size:.8rem;font-weight:600;cursor:pointer;transition:opacity .15s;
+}
+.clp-btn:hover{opacity:.85}
+.clp-btn:disabled{opacity:.45;cursor:not-allowed}
+.clp-reset{
+  display:flex;align-items:center;gap:5px;padding:6px 12px;
+  background:transparent;border:1px solid var(--border);border-radius:var(--radius);
+  font-size:.8rem;color:var(--text-sub);cursor:pointer;transition:background .12s;
+}
+.clp-reset:hover{background:var(--hover)}
+.clp-body{flex:1;overflow-y:auto;padding:12px 16px}
+.clp-tbl-wrap{background:#fff;border-radius:4px;border:1px solid var(--border);overflow:hidden}
+.clp-tbl{width:100%;border-collapse:collapse}
+.clp-tbl thead tr{background:#eeeeee}
+.clp-tbl thead th{
+  padding:9px 14px;text-align:left;font-size:.78rem;font-weight:700;
+  color:#424242;white-space:nowrap;border-bottom:2px solid var(--border);
+}
+.clp-tbl tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.clp-tbl tbody tr:hover{background:#e3f2fd}
+.clp-tbl tbody tr:last-child{border-bottom:none}
+.clp-tbl tbody td{padding:10px 14px;font-size:.85rem;vertical-align:middle}
+.clp-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:700;min-width:36px;letter-spacing:.03em;
+}
+.clp-badge-A{background:#f44336;color:#fff}
+.clp-badge-B{background:#ff9800;color:#fff}
+.clp-badge-C{background:#4caf50;color:#fff}
+.clp-tbl tbody tr.row-A{border-left:4px solid #f44336;background:#fff8f8}
+.clp-tbl tbody tr.row-B{border-left:4px solid #ff9800;background:#fffbf0}
+.clp-tbl tbody tr.row-C{border-left:4px solid #4caf50;background:#f6fbf6}
+.clp-tbl tbody tr.row-A:hover{background:#ffeaea}
+.clp-tbl tbody tr.row-B:hover{background:#fff3d6}
+.clp-tbl tbody tr.row-C:hover{background:#e8f5e9}
+.clp-col-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.clp-col-sub{color:var(--text-sub);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.clp-col-summary{color:var(--text-sub);font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clp-reply-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 10px;border:1px solid var(--blue);color:var(--blue);
+  border-radius:var(--radius);font-size:.75rem;font-weight:600;
+  background:transparent;cursor:pointer;transition:background .12s;
+}
+.clp-reply-btn:hover{background:var(--blue-bg)}
+.clp-empty{text-align:center;padding:40px;color:var(--text-sub)}
+.clp-summary{
+  display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;font-size:.8rem;
+}
+.clp-summary-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 9px;border-radius:10px;font-weight:700;font-size:.75rem;
+}
+.clp-summary-chip.A{background:#f44336;color:#fff}
+.clp-summary-chip.B{background:#ff9800;color:#fff}
+.clp-summary-chip.C{background:#4caf50;color:#fff}
+.clp-summary-label{color:var(--text-sub)}
+.clp-footer{
+  display:flex;align-items:center;justify-content:flex-end;
+  padding:8px 16px;background:#fff;border-top:1px solid var(--border);flex-shrink:0;
+  font-size:.78rem;
+}
+
+/* 空状態 */
+#empty-state{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;color:var(--text-light);
+}
+#empty-state .es-icon{font-size:4rem;opacity:.4}
+#empty-state .es-text{font-size:1rem;font-weight:500}
+#empty-state .es-sub{font-size:.85rem}
+
+/* メール詳細 */
+#mail-detail{flex:1;display:none;flex-direction:column;overflow:hidden}
+
+/* 詳細ツールバー */
+.dt-toolbar{
+  display:flex;align-items:center;gap:1px;flex-wrap:wrap;
+  padding:3px 8px;border-bottom:1px solid var(--border);flex-shrink:0;background:#fff;
+}
+.dt-btn{
+  display:flex;align-items:center;gap:3px;
+  border:none;background:transparent;border-radius:var(--radius);
+  padding:3px 6px;font-size:.72rem;color:var(--text-sub);cursor:pointer;
+  transition:background .1s;white-space:nowrap;
+}
+.dt-btn:hover{background:var(--hover)}
+.dt-btn.primary{color:var(--blue)}
+.dt-btn.primary:hover{background:var(--blue-bg)}
+.dt-btn.danger:hover{background:#fde7e9;color:var(--red)}
+.dt-sep{width:1px;height:16px;background:var(--border);margin:0 2px}
+
+/* 詳細ヘッダー */
+.dh-wrap{padding:8px 12px 6px;border-bottom:1px solid var(--border);flex-shrink:0}
+.dh-subject{font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:5px;line-height:1.3}
+.dh-meta{display:flex;align-items:flex-start;gap:8px}
+.dh-avatar{margin-top:2px}
+.dh-info{flex:1;min-width:0}
+.dh-from-name{font-size:.8rem;font-weight:600;color:var(--text)}
+.dh-from-addr{font-size:.72rem;color:var(--text-sub);margin-left:3px}
+.dh-to-line{font-size:.72rem;color:var(--text-sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dh-date{font-size:.68rem;color:var(--text-light);white-space:nowrap;margin-top:2px}
+
+/* 本文 */
+.db-wrap{flex:1;overflow:hidden;position:relative}
+#body-text{padding:16px 20px;white-space:pre-wrap;font-size:.85rem;line-height:1.7;height:100%;overflow-y:auto;color:var(--text);font-family:inherit}
+
+/* 返信エリア（デモ用：常に非表示） */
+.reply-wrap{border-top:1px solid var(--border);padding:10px 14px;background:#faf9f8;flex-shrink:0;display:none}
+
+/* ===== AIチャットパネル ===== */
+.ai-hdr{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 10px;border-bottom:1px solid var(--border);
+  background:#fff;flex-shrink:0;
+}
+.ai-hdr-title{font-size:.82rem;font-weight:700;flex:1;color:var(--text)}
+
+/* ===== コンテキストメニュー ===== */
+#ctx-menu{display:none}
+
+/* ===== トースト ===== */
+#toast-wrap{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:300;
+}
+.toast{
+  background:#323130;color:#fff;padding:10px 22px;border-radius:20px;
+  font-size:.82rem;opacity:0;pointer-events:none;transition:opacity .2s;
+  white-space:nowrap;
+}
+.toast.show{opacity:1}
+
+/* ===== スクロールバー全体 ===== */
+#sidebar::-webkit-scrollbar{width:4px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ===== デモタグ ===== */
+.demo-tag{
+  display:inline-block;background:#fef3c7;color:#92400e;
+  font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px;
+}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ===== デモバナー ===== -->
+<div id="demo-banner">
+  <span>🎮 これはデモ画面です — 架空のメールで操作体験ができます</span>
+  <a href="/accounts/auth/?tab=register" class="reg-btn">無料で本登録する →</a>
+  <a href="/" class="top-btn">トップへ戻る</a>
+</div>
+
+<div id="app">
+
+<!-- ===== トップバー ===== -->
+<div id="topbar">
+  <div class="tb-logo">
+    <img src="/static/img/logo.png" alt="はやメール">
+  </div>
+  <div class="tb-search">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" placeholder="メールを検索（デモ）" onclick="demoToast('検索はデモでは利用できません')">
+  </div>
+  <div class="tb-spacer"></div>
+  <div class="tb-right">
+    <button onclick="showClassifyPane()" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:4px;border:1px solid #0078d4;color:#0078d4;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap;background:#fff">
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI分類
+    </button>
+    <button class="tb-icon-btn" title="同期" onclick="demoToast('同期はデモでは利用できません')">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+    <div class="tb-account-btn">
+      <div class="avatar" style="background:#0078d4">デ</div>
+      <div class="tb-account-email">demo@hayamail.jp</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== メインエリア ===== -->
+<div id="main">
+
+  <!-- ===== サイドバー ===== -->
+  <div id="sidebar">
+    <button class="sb-new-btn" onclick="demoToast('新規メール作成はデモでは利用できません')">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      新規メール
+    </button>
+    <button onclick="showClassifyPane()" style="display:flex;align-items:center;gap:7px;margin:0 10px 4px;padding:7px 12px;border-radius:4px;background:linear-gradient(135deg,#eff6fc,#deecf9);border:1px solid #b3d6f5;color:#0078d4;font-size:.8rem;font-weight:600;cursor:pointer;width:calc(100% - 20px);transition:opacity .12s">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      AI メール分類
+    </button>
+    <div class="sb-section-label">フォルダ</div>
+    <div id="folder-list">
+      <div class="folder-item active" id="fi-inbox" onclick="showInboxPane()">
+        <span class="fi-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
+        <span class="folder-name">受信トレイ</span>
+        <span class="folder-badge" id="unread-badge">3</span>
+      </div>
+      <div class="folder-item" onclick="demoToast('送信済みフォルダはデモでは表示できません')">
+        <span class="fi-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></span>
+        <span class="folder-name">送信済み</span>
+        <span class="folder-badge zero">0</span>
+      </div>
+      <div class="folder-item" onclick="demoToast('ゴミ箱はデモでは表示できません')">
+        <span class="fi-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></span>
+        <span class="folder-name">ゴミ箱</span>
+        <span class="folder-badge zero">0</span>
+      </div>
+    </div>
+    <div class="sb-footer">
+      <button class="sb-sync-btn" onclick="demoToast('同期はデモでは利用できません')">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        今すぐ同期
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== メール一覧ペイン ===== -->
+  <div id="list-pane">
+    <div class="lp-header">
+      <div class="lp-title">受信トレイ</div>
+      <span class="lp-count" id="mail-count">6件</span>
+      <button class="lp-sort-btn" onclick="demoToast('並び替えはデモでは利用できません')">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+        日付
+      </button>
+    </div>
+    <div id="email-list"></div>
+  </div>
+
+  <!-- ===== 本文ペイン ===== -->
+  <div id="body-pane">
+    <div id="empty-state">
+      <div class="es-icon">📭</div>
+      <div class="es-text">メールを選択</div>
+      <div class="es-sub">メールを選択すると内容がここに表示されます</div>
+    </div>
+
+    <div id="mail-detail">
+      <!-- ツールバー -->
+      <div class="dt-toolbar">
+        <button class="dt-btn" onclick="closeMail()">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          一覧に戻る
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn primary" onclick="demoToast('返信はデモでは利用できません。本登録後にお使いいただけます')">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+          返信
+        </button>
+        <button class="dt-btn" style="color:#8764b8" onclick="demoToast('AI返信提案はデモでは利用できません。本登録後にお使いいただけます')">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          AI返信提案
+        </button>
+        <button class="dt-btn primary" onclick="demoToast('転送はデモでは利用できません。本登録後にお使いいただけます')">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+          転送
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn" onclick="demoToast('削除はデモでは利用できません')">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          ゴミ箱へ移動
+        </button>
+        <div class="dt-sep"></div>
+        <button class="dt-btn" onclick="demoToast('未読設定はデモでは利用できません')">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.23h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.06-1.06a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.07z"/></svg>
+          未読
+        </button>
+      </div>
+
+      <!-- 件名・差出人ヘッダー -->
+      <div class="dh-wrap">
+        <div class="dh-subject" id="detail-subject"></div>
+        <div class="dh-meta">
+          <div class="dh-avatar"><div class="avatar" id="detail-avatar" style="background:#0078d4;width:22px;height:22px;font-size:.62rem">?</div></div>
+          <div class="dh-info">
+            <div>
+              <span class="dh-from-name" id="detail-from-name"></span>
+              <span class="dh-from-addr" id="detail-from-addr"></span>
+            </div>
+            <div class="dh-to-line">宛先: demo@hayamail.jp</div>
+          </div>
+          <div class="dh-date" id="detail-date"></div>
+        </div>
+      </div>
+
+      <!-- 本文 -->
+      <div class="db-wrap">
+        <div id="body-text"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AI分類ペイン ===== -->
+  <div id="classify-pane">
+    <div class="clp-header">
+      <span class="clp-title">AI メール分類 <span class="demo-tag">DEMO</span></span>
+      <button class="clp-btn" onclick="demoToast('分類実行はデモでは利用できません。本登録後にお使いいただけます')">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        分類開始
+      </button>
+      <button class="clp-reset" onclick="showInboxPane()">受信トレイへ</button>
+    </div>
+    <!-- 件数サマリーバー -->
+    <div class="clp-summary">
+      <span class="clp-summary-label">受信トレイ:</span>
+      <span class="clp-summary-chip A">A 1</span>
+      <span class="clp-summary-chip B">B 2</span>
+      <span class="clp-summary-chip C">C 3</span>
+    </div>
+    <div class="clp-body">
+      <div class="clp-tbl-wrap">
+        <table class="clp-tbl">
+          <thead>
+            <tr>
+              <th>件名</th>
+              <th>送信者</th>
+              <th>要約</th>
+              <th style="width:100px">カテゴリ</th>
+            </tr>
+          </thead>
+          <tbody id="clp-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="clp-footer">
+      <span style="color:var(--text-sub)">※ デモデータです。本登録後に実際のメールを分類できます。</span>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div id="toast-wrap"><div class="toast" id="toast"></div></div>
+
+<script>
+// =============================================
+// 架空メールデータ
+// =============================================
+const DEMO_EMAILS = [
+  {
+    uid: 1,
+    from: '田中部長',
+    from_email: 'tanaka@company.co.jp',
+    subject: '【緊急】明日の会議資料について',
+    preview: '明日10時の役員会議の資料を今日中に確認してほしい...',
+    body: `田中部長より\n\nお疲れ様です。\n\n明日10時からの役員会議ですが、資料の最終確認をお願いします。\n修正点があれば17時までに共有してください。\n\nよろしくお願いいたします。\n\n田中`,
+    date: '2026/04/09 10:32',
+    is_read: false,
+    category: 'A',
+    summary: '役員会議資料の確認依頼。17時までに修正点を共有。',
+  },
+  {
+    uid: 2,
+    from: 'セレブリックス 高田さえか',
+    from_email: 'takada@cerebrix.jp',
+    subject: '入力されない商談ログを型化する第一歩',
+    preview: '商談ログの型化について提案があります。現状の課題と解決策をまとめました...',
+    body: `高田さえか（株式会社セレブリックス）より\n\nはじめまして。\n\n商談ログが入力されないという課題についてご提案があります。\n現状の課題と解決策をまとめた資料をご覧いただけますでしょうか。\n\n30分ほどお時間をいただけますと幸いです。\n\nどうぞよろしくお願いいたします。`,
+    date: '2026/04/09 16:24',
+    is_read: false,
+    category: 'B',
+    summary: '商談ログ型化の提案。30分の面談を希望。',
+  },
+  {
+    uid: 3,
+    from: 'LinkedIn',
+    from_email: 'notifications@linkedin.com',
+    subject: '株式会社DigiNest SHOTAさん、中村喜彦さんとつながりましょう',
+    preview: 'つながりの案内です',
+    body: `LinkedInより\n\nSHOTAさん、中村喜彦さんがあなたとつながりたいと思っています。\n\nプロフィールを確認して、つながりのリクエストを承認しましょう。\n\nLinkedInチーム`,
+    date: '昨日',
+    is_read: true,
+    category: 'C',
+    summary: 'LinkedInつながり申請の通知。',
+  },
+  {
+    uid: 4,
+    from: 'Google',
+    from_email: 'no-reply@accounts.google.com',
+    subject: 'セキュリティ通知',
+    preview: 'Googleアカウントへの新しいログインがありました',
+    body: `Googleより\n\nGoogleアカウント demo@hayamail.jp に新しいデバイスからのログインがありました。\n\nこのログインに心当たりがない場合は、すぐにパスワードを変更してください。\n\nGoogleチーム`,
+    date: '昨日',
+    is_read: true,
+    category: 'C',
+    summary: 'Googleアカウントへの新規ログイン通知。',
+  },
+  {
+    uid: 5,
+    from: '鈴木 誠（営業部）',
+    from_email: 'suzuki@company.co.jp',
+    subject: '来週の商談アポイントの件',
+    preview: '来週火曜日の14時〜はご都合いかがでしょうか...',
+    body: `鈴木より\n\nお世話になっております。\n\n来週火曜日(4/14)の14時〜15時にてA社との商談アポイントを設定したいのですが、ご都合いかがでしょうか。\n\nご確認よろしくお願いいたします。`,
+    date: '2日前',
+    is_read: true,
+    category: 'B',
+    summary: '来週火曜14時の商談アポイント確認。',
+  },
+  {
+    uid: 6,
+    from: 'Amazon',
+    from_email: 'order-update@amazon.co.jp',
+    subject: 'ご注文が発送されました',
+    preview: 'ご注文 #123-4567890-1234567 が本日発送されました',
+    body: `Amazonより\n\nご注文ありがとうございます。\n\nご注文 #123-4567890-1234567 が本日発送されました。\n\nお届け予定日：2026年4月11日（土）\n\nAmazon.co.jp`,
+    date: '3日前',
+    is_read: true,
+    category: 'C',
+    summary: 'Amazon注文の発送完了通知。',
+  },
+];
+
+// =============================================
+// ユーティリティ
+// =============================================
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function avatarColor(name) {
+  const colors = ['#0078d4','#107c10','#d13438','#ca5010','#8764b8','#038387'];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return colors[Math.abs(h) % colors.length];
+}
+function avatarInitial(name) { return name ? name[0] : '?'; }
+
+function demoToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = '🔒 ' + msg;
+  el.className = 'show';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3500);
+}
+
+// =============================================
+// ペイン切替
+// =============================================
+let currentPane = 'inbox';
+
+function showClassifyPane() {
+  currentPane = 'classify';
+  document.getElementById('classify-pane').classList.add('active');
+  document.getElementById('list-pane').style.display = 'none';
+  document.getElementById('body-pane').style.display = 'none';
+  document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
+}
+
+function showInboxPane() {
+  currentPane = 'inbox';
+  document.getElementById('classify-pane').classList.remove('active');
+  document.getElementById('list-pane').style.display = 'flex';
+  document.getElementById('body-pane').style.display = 'flex';
+  document.getElementById('fi-inbox').classList.add('active');
+}
+
+// =============================================
+// メール一覧レンダリング
+// =============================================
+let currentUid = null;
+
+function renderList() {
+  const unreadCount = DEMO_EMAILS.filter(e => !e.is_read).length;
+  const badge = document.getElementById('unread-badge');
+  if (badge) { badge.textContent = unreadCount; badge.classList.toggle('zero', unreadCount === 0); }
+
+  const list = document.getElementById('email-list');
+  list.innerHTML = DEMO_EMAILS.map(e => `
+    <div class="mail-row${e.is_read ? '' : ' unread'}${e.uid === currentUid ? ' active' : ''}" data-uid="${e.uid}" onclick="openMail(${e.uid})">
+      <div class="avatar" style="background:${avatarColor(e.from)}">${esc(avatarInitial(e.from))}</div>
+      <div class="mr-body">
+        <div class="mr-top">
+          <span class="mr-from">${esc(e.from)}</span>
+          <span class="mr-time">${esc(e.date)}</span>
+          ${e.category ? `<span class="mr-priority-badge mr-priority-badge-${e.category}">${{A:'緊急',B:'重要',C:'通常'}[e.category]}</span>` : ''}
+        </div>
+        <div class="mr-subject-wrap">
+          <div class="mr-subject">${esc(e.subject)}</div>
+        </div>
+        <div class="mr-preview">${esc(e.preview)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// =============================================
+// メール本文表示
+// =============================================
+function openMail(uid) {
+  currentUid = uid;
+  const e = DEMO_EMAILS.find(m => m.uid === uid);
+  if (!e) return;
+  e.is_read = true;
+  renderList();
+
+  document.getElementById('empty-state').style.display = 'none';
+  const detail = document.getElementById('mail-detail');
+  detail.style.display = 'flex';
+  detail.style.flexDirection = 'column';
+
+  document.getElementById('detail-subject').textContent = e.subject;
+  document.getElementById('detail-date').textContent = e.date;
+  document.getElementById('detail-from-name').textContent = e.from;
+  document.getElementById('detail-from-addr').textContent = '<' + e.from_email + '>';
+
+  const av = document.getElementById('detail-avatar');
+  av.textContent = avatarInitial(e.from);
+  av.style.background = avatarColor(e.from);
+
+  document.getElementById('body-text').textContent = e.body;
+}
+
+function closeMail() {
+  currentUid = null;
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('mail-detail').style.display = 'none';
+  renderList();
+}
+
+// =============================================
+// 分類リストレンダリング
+// =============================================
+function renderClassify() {
+  const tbody = document.getElementById('clp-tbody');
+  tbody.innerHTML = [...DEMO_EMAILS]
+    .sort((a, b) => a.category.localeCompare(b.category))
+    .map(e => `
+    <tr class="row-${e.category}" onclick="showInboxPane();setTimeout(()=>openMail(${e.uid}),50)">
+      <td><div class="clp-col-title" title="${esc(e.subject)}">${esc(e.subject)}</div></td>
+      <td><div class="clp-col-sub" title="${esc(e.from)}">${esc(e.from)}</div></td>
+      <td><div class="clp-col-summary" title="${esc(e.summary)}">${esc(e.summary)}</div></td>
+      <td><span class="clp-badge clp-badge-${e.category}">優先度:${e.category}</span></td>
+    </tr>
+  `).join('');
+}
+
+// =============================================
+// 初期化
+// =============================================
+renderList();
+renderClassify();
+showInboxPane();
+</script>
+</body>
+</html>

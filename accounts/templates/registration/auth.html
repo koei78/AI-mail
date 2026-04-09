@@ -210,10 +210,10 @@ input.err{border-color:var(--red)}
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ next|default:'/mail/' }}">
       <div class="fg">
-        <label for="id_login_username">ユーザー名</label>
-        <input type="text" name="username" id="id_login_username"
+        <label for="id_login_username">メールアドレス</label>
+        <input type="email" name="username" id="id_login_username"
                value="{{ login_form.username.value|default:'' }}"
-               placeholder="username" autocomplete="username"
+               placeholder="you@example.com" autocomplete="email"
                class="{% if login_form.username.errors %}err{% endif %}">
         {% for e in login_form.username.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
       </div>
