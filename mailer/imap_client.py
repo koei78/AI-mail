@@ -11,6 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.parser import BytesParser
 from email.utils import formataddr
+from email.utils import parseaddr
 
 import imapclient
 
@@ -818,6 +819,8 @@ class MailClient:
 
         subject = original_data.get('subject', '')
         from_address = original_data.get('from_address', '')
+        _, reply_to_email = parseaddr(from_address)
+        recipient_email = (reply_to_email or from_address).strip()
         message_id = original_data.get('message_id', '')
         body_text = original_data.get('body_text', '')
 
@@ -843,6 +846,8 @@ class MailClient:
         msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = from_address
+        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['To'] = recipient_email
         if message_id:
             msg['In-Reply-To'] = message_id
             msg['References'] = message_id
@@ -851,7 +856,7 @@ class MailClient:
 
         try:
             smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, [from_address], raw_bytes)
+            smtp.sendmail(self.account.email_address, [recipient_email], raw_bytes)
             smtp.quit()
         except SmtpConnectionError:
             raise
