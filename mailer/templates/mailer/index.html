@@ -137,6 +137,13 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   font-size:.82rem;color:var(--text-sub);cursor:pointer;transition:background .12s;
 }
 .sb-sync-btn:hover{background:var(--hover)}
+.sb-settings-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:transparent;border:none;padding:8px 10px;border-radius:var(--radius);
+  font-size:.82rem;color:var(--text-sub);cursor:pointer;transition:background .12s;
+  margin-bottom:2px;
+}
+.sb-settings-btn:hover{background:var(--hover)}
 .sb-add-link{
   display:flex;align-items:center;gap:8px;
   padding:8px 10px;border-radius:var(--radius);
@@ -663,6 +670,150 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 .asp-regen-btn:hover,.asp-answer-btn:hover{background:var(--hover)}
 .asp-answer-btn{color:var(--blue);border-color:var(--blue)}
 .asp-answer-btn:hover{background:var(--blue-bg)}
+
+/* ===== 設定モーダル ===== */
+#settings-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  z-index:500;display:none;align-items:center;justify-content:center;
+}
+#settings-overlay.open{display:flex}
+.settings-modal{
+  background:#fff;border-radius:10px;box-shadow:var(--shadow);
+  width:560px;max-width:96vw;max-height:85vh;
+  display:flex;flex-direction:column;animation:modal-in .15s ease;
+}
+.settings-hdr{
+  display:flex;align-items:center;
+  padding:14px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.settings-hdr-title{font-size:.95rem;font-weight:700;flex:1;color:var(--text)}
+.settings-close-btn{
+  background:none;border:none;cursor:pointer;font-size:1.1rem;
+  color:var(--text-sub);padding:0 4px;line-height:1;
+}
+.settings-close-btn:hover{color:var(--text)}
+.settings-tabs{
+  display:flex;border-bottom:1px solid var(--border);flex-shrink:0;padding:0 8px;
+}
+.settings-tab{
+  background:none;border:none;cursor:pointer;
+  padding:10px 14px;font-size:.82rem;font-weight:600;color:var(--text-sub);
+  border-bottom:2px solid transparent;transition:color .12s,border-color .12s;
+  margin-bottom:-1px;
+}
+.settings-tab:hover{color:var(--text)}
+.settings-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.settings-body{flex:1;overflow-y:auto;padding:18px}
+.settings-pane{display:none}
+.settings-pane.active{display:block}
+.stg-section-title{
+  font-size:.78rem;font-weight:700;color:var(--text-sub);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;
+}
+.stg-account-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:6px;background:#fafafa;
+}
+.stg-account-info{flex:1;min-width:0}
+.stg-account-email{font-size:.85rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stg-account-type{font-size:.73rem;color:var(--text-sub);margin-top:1px}
+.stg-del-btn{
+  background:none;border:1px solid #ddd;border-radius:var(--radius);
+  padding:4px 10px;font-size:.75rem;color:#c43e1c;cursor:pointer;
+  transition:background .12s;flex-shrink:0;
+}
+.stg-del-btn:hover{background:#fdf3f1;border-color:#c43e1c}
+.stg-add-account-btn{
+  display:flex;align-items:center;gap:7px;width:100%;
+  padding:9px 12px;border:1px dashed var(--blue);border-radius:var(--radius);
+  background:none;color:var(--blue);font-size:.82rem;font-weight:600;
+  cursor:pointer;text-decoration:none;margin-top:4px;transition:background .12s;
+  box-sizing:border-box;justify-content:center;
+}
+.stg-add-account-btn:hover{background:var(--blue-bg)}
+.stg-form-row{margin-bottom:14px}
+.stg-label{font-size:.78rem;font-weight:600;color:var(--text);margin-bottom:5px;display:block}
+.stg-input{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:7px 10px;font-size:.82rem;outline:none;font-family:inherit;
+  transition:border-color .15s;box-sizing:border-box;
+}
+.stg-input:focus{border-color:var(--blue)}
+.stg-select{
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:7px 10px;font-size:.82rem;outline:none;font-family:inherit;
+  cursor:pointer;background:#fff;
+}
+.stg-toggle-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:14px;background:#fafafa;
+}
+.stg-toggle-label{flex:1;font-size:.85rem;font-weight:600;color:var(--text)}
+.stg-toggle-sub{font-size:.75rem;color:var(--text-sub);font-weight:400}
+.stg-toggle{
+  position:relative;width:38px;height:22px;flex-shrink:0;
+}
+.stg-toggle input{opacity:0;width:0;height:0;position:absolute}
+.stg-toggle-slider{
+  position:absolute;inset:0;background:#ccc;border-radius:22px;
+  cursor:pointer;transition:background .2s;
+}
+.stg-toggle-slider:before{
+  content:'';position:absolute;width:16px;height:16px;
+  left:3px;top:3px;background:#fff;border-radius:50%;
+  transition:transform .2s;
+}
+.stg-toggle input:checked + .stg-toggle-slider{background:var(--blue)}
+.stg-toggle input:checked + .stg-toggle-slider:before{transform:translateX(16px)}
+.stg-weekdays{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.stg-day-btn{
+  padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);
+  font-size:.75rem;cursor:pointer;background:#fff;color:var(--text-sub);transition:all .12s;
+}
+.stg-day-btn.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
+.stg-save-btn{
+  padding:7px 22px;background:var(--blue);color:#fff;
+  border:none;border-radius:var(--radius);font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:background .12s;
+}
+.stg-save-btn:hover{background:var(--blue-hover)}
+.stg-save-btn:disabled{opacity:.5;cursor:not-allowed}
+.stg-label-row{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:5px;background:#fafafa;
+}
+.stg-label-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.stg-label-name{flex:1;font-size:.83rem;color:var(--text)}
+.stg-label-del{
+  background:none;border:none;cursor:pointer;
+  color:var(--text-light);font-size:.8rem;padding:0 3px;
+}
+.stg-label-del:hover{color:#c43e1c}
+.stg-label-add-form{
+  display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--border);
+}
+.stg-label-add-input{
+  flex:1;border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 9px;font-size:.82rem;outline:none;font-family:inherit;
+  transition:border-color .15s;
+}
+.stg-label-add-input:focus{border-color:var(--blue)}
+.stg-label-add-btn{
+  padding:6px 14px;background:var(--blue);color:#fff;
+  border:none;border-radius:var(--radius);font-size:.78rem;font-weight:600;
+  cursor:pointer;white-space:nowrap;transition:background .12s;
+}
+.stg-label-add-btn:hover{background:var(--blue-hover)}
+.stg-mini-colors{display:flex;gap:5px;flex-wrap:wrap}
+.stg-mini-color{
+  width:18px;height:18px;border-radius:50%;cursor:pointer;
+  border:2px solid transparent;transition:border-color .1s;flex-shrink:0;
+}
+.stg-mini-color.sel{border-color:#333}
 </style>
 </head>
 <body>
@@ -741,6 +892,10 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
     <div id="label-list"></div>
 
     <div class="sb-footer">
+      <button class="sb-settings-btn" id="btn-settings">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        設定
+      </button>
       <button class="sb-sync-btn" id="btn-sync">
         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         今すぐ同期
@@ -2369,6 +2524,208 @@ async function openMailFromClassify(uid, folderId, doReply = false) {
   setTimeout(() => clearInterval(waitId), 15000);
 }
 
+// =============================================
+// 設定モーダル
+// =============================================
+let _stgLabelColor = LABEL_COLORS[0];
+
+function openSettings() {
+  $('settings-overlay').classList.add('open');
+  switchSettingsTab('accounts');
+}
+
+function closeSettings() {
+  $('settings-overlay').classList.remove('open');
+}
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll('.settings-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.stab === tab);
+  });
+  document.querySelectorAll('.settings-pane').forEach(p => {
+    p.classList.toggle('active', p.id === 'stab-' + tab);
+  });
+  if (tab === 'accounts') renderSettingsAccounts();
+  if (tab === 'schedule') loadScheduleSettings();
+  if (tab === 'labels') renderSettingsLabels();
+}
+
+// --- アカウントタブ ---
+function renderSettingsAccounts() {
+  const el = $('stg-account-list');
+  if (!S.accounts || !S.accounts.length) {
+    el.innerHTML = '<div style="color:var(--text-sub);font-size:.82rem;padding:8px 0">アカウントがありません</div>';
+    return;
+  }
+  const PROVIDER_LABELS = { gmail: 'Gmail', outlook: 'Outlook', microsoft_oauth2: 'Outlook', imap: 'IMAP' };
+  el.innerHTML = S.accounts.map(a => {
+    const providerType = a.auth_type || 'imap';
+    const providerLabel = PROVIDER_LABELS[providerType] || 'IMAP';
+    return `<div class="stg-account-row">
+      <div class="avatar" style="background:${avatarColor(a.email_address)};width:32px;height:32px;font-size:.78rem;flex-shrink:0">${avatarInitial(a.email_address)}</div>
+      <div class="stg-account-info">
+        <div class="stg-account-email">${esc(a.email_address)}</div>
+        <div class="stg-account-type">${esc(a.display_name || providerLabel)}</div>
+      </div>
+      <button class="stg-del-btn" data-aid="${a.id}">削除</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.stg-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteSettingsAccount(parseInt(btn.dataset.aid)));
+  });
+}
+
+async function deleteSettingsAccount(id) {
+  const account = S.accounts.find(a => a.id === id);
+  if (!account) return;
+  if (!confirm(`「${account.email_address}」を削除しますか？\n関連するフォルダやデータも削除されます。`)) return;
+  const d = await api(`/mail/api/accounts/${id}/`, { method: 'DELETE' });
+  if (d.ok) {
+    S.accounts = S.accounts.filter(a => a.id !== id);
+    if (S.curAccount && S.curAccount.id === id) {
+      const next = S.accounts[0] || null;
+      if (next) setAccount(next);
+      else { S.curAccount = null; showEmpty(); }
+    }
+    renderSettingsAccounts();
+    toast('アカウントを削除しました', 'success');
+  } else {
+    toast('削除失敗: ' + (d.error || '不明'), 'error');
+  }
+}
+
+// --- AI分類スケジュールタブ ---
+async function loadScheduleSettings() {
+  const d = await api('/mail/api/classify/schedule/');
+  if (!d.ok) { toast('スケジュール取得失敗', 'error'); return; }
+  const s = d.schedule;
+  $('stg-schedule-enabled').checked = s.is_enabled;
+  // 時セレクト生成（初回のみ）
+  const hourSel = $('stg-hour');
+  if (!hourSel.options.length) {
+    for (let h = 0; h < 24; h++) {
+      const opt = document.createElement('option');
+      opt.value = h; opt.textContent = String(h).padStart(2, '0') + '時';
+      hourSel.appendChild(opt);
+    }
+  }
+  hourSel.value = s.hour;
+  $('stg-minute').value = s.minute;
+  // 曜日ボタン
+  const days = s.weekdays || [];
+  document.querySelectorAll('.stg-day-btn').forEach(btn => {
+    btn.classList.toggle('sel', days.includes(parseInt(btn.dataset.day)));
+  });
+  // 次回実行・最終実行
+  _renderScheduleInfo(s);
+}
+
+function _renderScheduleInfo(s) {
+  const infoEl = $('stg-schedule-info');
+  infoEl.style.display = 'flex';
+  $('stg-next-run-val').textContent = s.next_run_at
+    ? new Date(s.next_run_at).toLocaleString('ja-JP')
+    : (s.is_enabled ? '—' : '無効');
+  $('stg-last-run-val').textContent = s.last_run_at
+    ? new Date(s.last_run_at).toLocaleString('ja-JP')
+    : 'なし';
+}
+
+async function saveScheduleSettings() {
+  const btn = $('stg-schedule-save');
+  btn.disabled = true;
+  const weekdays = [];
+  document.querySelectorAll('.stg-day-btn.sel').forEach(b => weekdays.push(parseInt(b.dataset.day)));
+  const payload = {
+    is_enabled: $('stg-schedule-enabled').checked,
+    hour: parseInt($('stg-hour').value),
+    minute: parseInt($('stg-minute').value),
+    weekdays,
+  };
+  const d = await api('/mail/api/classify/schedule/', { method: 'POST', body: JSON.stringify(payload) });
+  btn.disabled = false;
+  if (d.ok) {
+    _renderScheduleInfo(d.schedule);
+    toast('スケジュールを保存しました', 'success');
+  } else toast('保存失敗: ' + (d.error || '不明'), 'error');
+}
+
+// --- ラベル管理タブ ---
+function initStgMiniColors() {
+  const el = $('stg-mini-colors');
+  el.innerHTML = LABEL_COLORS.map(c =>
+    `<div class="stg-mini-color${c === _stgLabelColor ? ' sel' : ''}" data-c="${c}" style="background:${c}" title="${c}"></div>`
+  ).join('');
+  el.querySelectorAll('.stg-mini-color').forEach(div => {
+    div.addEventListener('click', () => {
+      _stgLabelColor = div.dataset.c;
+      el.querySelectorAll('.stg-mini-color').forEach(d => d.classList.toggle('sel', d.dataset.c === _stgLabelColor));
+    });
+  });
+}
+
+function renderSettingsLabels() {
+  initStgMiniColors();
+  const el = $('stg-label-list');
+  if (!S.labels || !S.labels.length) {
+    el.innerHTML = '<div style="color:var(--text-sub);font-size:.82rem;padding:4px 0 8px">ラベルがありません</div>';
+    return;
+  }
+  el.innerHTML = S.labels.map(l => `
+    <div class="stg-label-row">
+      <span class="stg-label-dot" style="background:${esc(l.color)}"></span>
+      <span class="stg-label-name">${esc(l.name)}</span>
+      <button class="stg-label-del" data-lid="${l.id}" title="削除">✕</button>
+    </div>
+  `).join('');
+  el.querySelectorAll('.stg-label-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteSettingsLabel(parseInt(btn.dataset.lid)));
+  });
+}
+
+async function deleteSettingsLabel(id) {
+  const label = S.labels.find(l => l.id === id);
+  if (!label) return;
+  if (!confirm(`ラベル「${label.name}」を削除しますか？`)) return;
+  const d = await api(`/mail/api/labels/${id}/`, { method: 'DELETE' });
+  if (d.ok) {
+    S.labels = S.labels.filter(l => l.id !== id);
+    if (S.curLabel && S.curLabel.id === id) { S.curLabel = null; showEmpty(); }
+    renderLabels();
+    renderSettingsLabels();
+    toast('ラベルを削除しました', 'success');
+  } else toast('削除失敗: ' + (d.error || '不明'), 'error');
+}
+
+async function addSettingsLabel() {
+  const name = $('stg-label-input').value.trim();
+  if (!name) { toast('ラベル名を入力してください', 'error'); return; }
+  const d = await api('/mail/api/labels/', { method: 'POST', body: JSON.stringify({ name, color: _stgLabelColor }) });
+  if (d.ok) {
+    S.labels.push(d.label);
+    renderLabels();
+    $('stg-label-input').value = '';
+    renderSettingsLabels();
+    toast('ラベルを作成しました', 'success');
+  } else toast('作成失敗: ' + (d.error || '不明'), 'error');
+}
+
+// イベントリスナー登録（モーダルHTML は script より後に配置のためデリゲーションで処理）
+$('btn-settings').addEventListener('click', openSettings);
+document.addEventListener('click', e => {
+  if (e.target.id === 'btn-settings-close') { closeSettings(); return; }
+  if (e.target.id === 'settings-overlay') { closeSettings(); return; }
+  if (e.target.id === 'stg-schedule-save') { saveScheduleSettings(); return; }
+  if (e.target.id === 'stg-label-add-btn') { addSettingsLabel(); return; }
+  const tab = e.target.closest('.settings-tab');
+  if (tab) { switchSettingsTab(tab.dataset.stab); return; }
+  const dayBtn = e.target.closest('.stg-day-btn');
+  if (dayBtn) { dayBtn.classList.toggle('sel'); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'stg-label-input') addSettingsLabel();
+});
+
 $('clp-classify-btn').addEventListener('click', async () => {
   const btn = $('clp-classify-btn');
   btn.disabled = true;
@@ -2384,5 +2741,95 @@ $('clp-classify-btn').addEventListener('click', async () => {
   if (listD.ok) renderClpRows(listD.classifications);
 });
 </script>
+
+<!-- ===== 設定モーダル ===== -->
+<div id="settings-overlay">
+  <div class="settings-modal">
+    <div class="settings-hdr">
+      <span class="settings-hdr-title">設定</span>
+      <button class="settings-close-btn" id="btn-settings-close">✕</button>
+    </div>
+    <div class="settings-tabs">
+      <button class="settings-tab active" data-stab="accounts">アカウント</button>
+      <button class="settings-tab" data-stab="schedule">AI分類スケジュール</button>
+      <button class="settings-tab" data-stab="labels">ラベル管理</button>
+    </div>
+    <div class="settings-body">
+
+      <!-- アカウントタブ -->
+      <div class="settings-pane active" id="stab-accounts">
+        <div class="stg-section-title">メールアカウント</div>
+        <div id="stg-account-list"></div>
+        <a href="/mail/setup/" class="stg-add-account-btn">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          アカウントを追加
+        </a>
+      </div>
+
+      <!-- AI分類スケジュールタブ -->
+      <div class="settings-pane" id="stab-schedule">
+        <div class="stg-section-title">自動AI分類スケジュール</div>
+        <div class="stg-toggle-row">
+          <div class="stg-toggle-label">
+            自動分類を有効にする
+            <div class="stg-toggle-sub">設定した時間に自動でAI分類を実行します</div>
+          </div>
+          <label class="stg-toggle">
+            <input type="checkbox" id="stg-schedule-enabled">
+            <span class="stg-toggle-slider"></span>
+          </label>
+        </div>
+        <div id="stg-schedule-detail">
+          <div style="display:flex;gap:12px;margin-bottom:14px">
+            <div class="stg-form-row" style="flex:1;margin-bottom:0">
+              <label class="stg-label" for="stg-hour">時</label>
+              <select id="stg-hour" class="stg-select"></select>
+            </div>
+            <div class="stg-form-row" style="flex:1;margin-bottom:0">
+              <label class="stg-label" for="stg-minute">分</label>
+              <select id="stg-minute" class="stg-select">
+                <option value="0">00分</option>
+                <option value="15">15分</option>
+                <option value="30">30分</option>
+                <option value="45">45分</option>
+              </select>
+            </div>
+          </div>
+          <div class="stg-form-row">
+            <label class="stg-label">実行曜日（未選択=毎日）</label>
+            <div class="stg-weekdays" id="stg-weekdays">
+              <button class="stg-day-btn" data-day="0">月</button>
+              <button class="stg-day-btn" data-day="1">火</button>
+              <button class="stg-day-btn" data-day="2">水</button>
+              <button class="stg-day-btn" data-day="3">木</button>
+              <button class="stg-day-btn" data-day="4">金</button>
+              <button class="stg-day-btn" data-day="5">土</button>
+              <button class="stg-day-btn" data-day="6">日</button>
+            </div>
+          </div>
+        </div>
+        <button class="stg-save-btn" id="stg-schedule-save">保存</button>
+        <div id="stg-schedule-info" style="display:none;margin-top:12px;padding:8px 12px;background:#f5f5f5;border-radius:var(--radius);font-size:.78rem;color:var(--text-sub);display:flex;gap:20px;flex-wrap:wrap">
+          <span>次回実行: <strong id="stg-next-run-val">—</strong></span>
+          <span>最終実行: <strong id="stg-last-run-val">なし</strong></span>
+        </div>
+      </div>
+
+      <!-- ラベル管理タブ -->
+      <div class="settings-pane" id="stab-labels">
+        <div class="stg-section-title">ラベル一覧</div>
+        <div id="stg-label-list"></div>
+        <div class="stg-label-add-form">
+          <div>
+            <div class="stg-mini-colors" id="stg-mini-colors" style="margin-bottom:6px"></div>
+            <input type="text" id="stg-label-input" class="stg-label-add-input" placeholder="新しいラベル名">
+          </div>
+          <button class="stg-label-add-btn" id="stg-label-add-btn">追加</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
 </body>
 </html>
