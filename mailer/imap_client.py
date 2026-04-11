@@ -6,16 +6,27 @@ import smtplib
 import logging
 import ssl
 from email import policy
-from email.header import decode_header, make_header
+from email.header import decode_header, make_header, Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.parser import BytesParser
+from email.utils import formataddr
 
 import imapclient
 
 from .models import MailAccount
 
 logger = logging.getLogger(__name__)
+
+
+def _make_from_header(display_name: str, email_address: str) -> str:
+    """RFC 5322 準拠の From ヘッダー値を生成する（非ASCII文字を自動エンコード）"""
+    name = display_name or ''
+    try:
+        name.encode('ascii')
+        return formataddr((name, email_address)) if name else email_address
+    except UnicodeEncodeError:
+        return formataddr((str(Header(name, 'utf-8')), email_address))
 
 
 # =============================
@@ -742,7 +753,7 @@ class MailClient:
                 msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
         msg['Subject'] = subject
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = ', '.join(to)
         if cc:
             msg['Cc'] = ', '.join(cc)
@@ -830,7 +841,7 @@ class MailClient:
             msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
 
         msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = from_address
         if message_id:
             msg['In-Reply-To'] = message_id
@@ -898,7 +909,7 @@ class MailClient:
             msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
 
         msg['Subject'] = f'Fwd: {subject}'
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = ', '.join(to)
 
         raw_bytes = msg.as_bytes()

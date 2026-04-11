@@ -335,6 +335,7 @@ class GraphMailClient:
 
                 emails.append({
                     'uid': uid,
+                    'graph_id': graph_id,
                     'message_id': data.get('internetMessageId', ''),
                     'subject': data.get('subject') or '（件名なし）',
                     'from_address': from_email,
@@ -598,31 +599,32 @@ class GraphMailClient:
     ) -> bool:
         """メールに返信する"""
         try:
-            from_address = original_data.get('from_address', '')
-            subject = original_data.get('subject', '')
-            message_id = original_data.get('message_id', '')
+            graph_id = original_data.get('graph_id', '')
             body_text = original_data.get('body_text', '')
 
             quoted = '\n'.join(f'> {line}' for line in body_text.splitlines())
             full_body = f'{body}\n\n{quoted}'
 
-            message = {
-                'subject': f'Re: {subject}' if not subject.startswith('Re:') else subject,
-                'body': {'contentType': 'text', 'content': full_body},
-                'toRecipients': self._build_recipients([from_address]),
+            payload: dict = {
+                'message': {
+                    'body': {'contentType': 'text', 'content': full_body},
+                },
+                'saveToSentItems': True,
             }
-            if message_id:
-                message['internetMessageHeaders'] = [
-                    {'name': 'In-Reply-To', 'value': message_id},
-                    {'name': 'References', 'value': message_id},
-                ]
             if attachments:
-                message['attachments'] = self._build_attachments(attachments)
+                payload['message']['attachments'] = self._build_attachments(attachments)
 
-            self._post(
-                f'{BASE_URL}/sendMail',
-                {'message': message, 'saveToSentItems': True},
-            )
+            if graph_id:
+                # Graph API の正式な返信エンドポイント（スレッド自動紐付け）
+                self._post(f'{BASE_URL}/messages/{graph_id}/reply', payload)
+            else:
+                # graph_id が取れない場合のフォールバック
+                from_address = original_data.get('from_address', '')
+                subject = original_data.get('subject', '')
+                payload['message']['subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
+                payload['message']['toRecipients'] = self._build_recipients([from_address])
+                self._post(f'{BASE_URL}/sendMail', payload)
+
             return True
         except GraphConnectionError as e:
             logger.error('返信エラー: %s', e)
