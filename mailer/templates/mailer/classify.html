@@ -223,6 +223,25 @@ tr.expanded .row-expand-inner{
 }
 .expand-meta span{display:flex;align-items:center;gap:4px}
 
+/* ===== フィルターバー ===== */
+#filter-bar{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 16px;border-bottom:1px solid var(--border);background:#fafafa;
+}
+#filter-bar .filter-label{font-size:.78rem;color:var(--text-light);margin-right:2px}
+.filter-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 12px;border-radius:20px;font-size:.78rem;font-weight:600;
+  border:1px solid var(--border);background:#fff;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s;color:var(--text-sub);
+}
+.filter-pill:hover{background:var(--hover)}
+.filter-pill.active-all{background:var(--blue);color:#fff;border-color:var(--blue)}
+.filter-pill.active-A{background:#f44336;color:#fff;border-color:#f44336}
+.filter-pill.active-B{background:#ff9800;color:#fff;border-color:#ff9800}
+.filter-pill.active-C{background:#4caf50;color:#fff;border-color:#4caf50}
+#filter-count{font-size:.78rem;color:var(--text-light);margin-left:auto}
+
 /* ===== 空状態 ===== */
 #empty-msg{text-align:center;padding:48px 16px;color:var(--text-sub)}
 .empty-icon{font-size:2rem;display:block;margin-bottom:8px}
@@ -326,6 +345,25 @@ tr.expanded .row-expand-inner{
           <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           カテゴリ分類開始
         </button>
+      </div>
+
+      <!-- フィルターバー -->
+      <div id="filter-bar">
+        <span class="filter-label">絞り込み:</span>
+        <button class="filter-pill active-all" data-filter="all" onclick="setFilter('all')">すべて</button>
+        <button class="filter-pill" data-filter="A" onclick="setFilter('A')">
+          <span style="width:8px;height:8px;border-radius:50%;background:#f44336;display:inline-block"></span>
+          緊急 (A)
+        </button>
+        <button class="filter-pill" data-filter="B" onclick="setFilter('B')">
+          <span style="width:8px;height:8px;border-radius:50%;background:#ff9800;display:inline-block"></span>
+          重要 (B)
+        </button>
+        <button class="filter-pill" data-filter="C" onclick="setFilter('C')">
+          <span style="width:8px;height:8px;border-radius:50%;background:#4caf50;display:inline-block"></span>
+          通常 (C)
+        </button>
+        <span id="filter-count"></span>
       </div>
 
       <!-- テーブル -->
@@ -525,6 +563,42 @@ if (initAcc) {
 }
 
 // =============================================
+// フィルター
+// =============================================
+let _currentFilter = 'all';
+
+function setFilter(f) {
+  _currentFilter = f;
+  // ボタンのアクティブ状態更新
+  document.querySelectorAll('.filter-pill').forEach(btn => {
+    btn.className = 'filter-pill';
+    if (btn.dataset.filter === f) btn.classList.add('active-' + f);
+  });
+  applyFilter();
+}
+
+function applyFilter() {
+  const tbody = document.getElementById('mail-tbody');
+  const allRows = Array.from(tbody.querySelectorAll('tr[data-uid]:not([data-expand-for])'));
+  let visibleCount = 0;
+  allRows.forEach(tr => {
+    const expandTr = tbody.querySelector(`tr[data-expand-for="${tr.dataset.uid}"]`);
+    const show = _currentFilter === 'all' || tr.dataset.cat === _currentFilter;
+    tr.style.display = show ? '' : 'none';
+    if (expandTr) expandTr.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+  const countEl = document.getElementById('filter-count');
+  if (countEl) countEl.textContent = visibleCount + '件';
+  // フッターも更新
+  const footerCount = document.getElementById('footer-count');
+  if (footerCount) {
+    const total = allRows.length;
+    footerCount.textContent = _currentFilter === 'all' ? total + '件' : `${visibleCount}件 / ${total}件`;
+  }
+}
+
+// =============================================
 // ソート
 // =============================================
 let _sortCol = 'category', _sortAsc = true;
@@ -629,7 +703,7 @@ function renderRows(items) {
     tbody.appendChild(tr);
     tbody.appendChild(expandTr);
   });
-  document.getElementById('footer-count').textContent = items.length + '件';
+  applyFilter();
 }
 
 
