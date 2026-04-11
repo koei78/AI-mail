@@ -230,6 +230,31 @@ class EmailClassification(models.Model):
         return f'[{self.category}] {self.subject}'
 
 
+class Friend(models.Model):
+    """友達（メールで連絡を取る相手）— アカウント単位で管理"""
+
+    account = models.ForeignKey(
+        MailAccount,
+        on_delete=models.CASCADE,
+        related_name='friends',
+        verbose_name='メールアカウント',
+    )
+    email_address = models.EmailField(verbose_name='友達のメールアドレス')
+    display_name = models.CharField(max_length=200, blank=True, verbose_name='表示名')
+    # 最終メール情報（取得時にキャッシュ）
+    last_email_at = models.DateTimeField(null=True, blank=True, verbose_name='最終メール日時')
+    last_email_subject = models.CharField(max_length=300, blank=True, verbose_name='最終メール件名')
+    added_at = models.DateTimeField(auto_now_add=True, verbose_name='追加日時')
+
+    class Meta:
+        verbose_name = '友達'
+        verbose_name_plural = '友達'
+        unique_together = [['account', 'email_address']]
+
+    def __str__(self):
+        return f'{self.display_name or self.email_address} ({self.account.email_address})'
+
+
 class ClassifySchedule(models.Model):
     """AI仕分け自動実行スケジュール（ユーザーごとに1レコード）"""
 

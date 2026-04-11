@@ -89,4 +89,13 @@ urlpatterns = [
     path('classify/', views.ClassifyView.as_view(), name='classify'),
     path('api/classify/', views.api_classify_emails, name='api_classify_emails'),
     path('api/classify/schedule/', views.api_classify_schedule, name='api_classify_schedule'),
+
+    # =============================
+    # 友達機能
+    # =============================
+    path('friends/', views.FriendsView.as_view(), name='friends'),
+    path('api/friends/', views.api_friends, name='api_friends'),
+    path('api/friends/messages/', views.api_friend_messages, name='api_friend_messages'),
+    path('api/friends/sync/', views.api_friends_sync, name='api_friends_sync'),
+    path('api/friends/debug/', views.api_friend_debug, name='api_friend_debug'),
 ]

@@ -541,6 +541,122 @@ class MailClient:
             return False
 
     # --------------------------------------------------
+    # 送信者・宛先検索（友達機能用）
+    # --------------------------------------------------
+
+    def _scan_for_address(self, folder_remote_name: str, email_address: str,
+                          field: str = 'from', scan_count: int = 500) -> list[int]:
+        """
+        最近のメールを手動スキャンしてアドレスが一致するUIDリストを返す。
+        IMAP SEARCH が機能しない場合のフォールバック。
+        """
+        try:
+            self._imap.select_folder(folder_remote_name, readonly=True)
+            all_uids = self._imap.search(['ALL'])
+        except Exception:
+            return []
+        if not all_uids:
+            return []
+        recent = sorted(all_uids, reverse=True)[:scan_count]
+        logger.info('_scan_for_address: フォルダ=%s 総件数=%d スキャン=%d 検索アドレス=%s',
+                    folder_remote_name, len(all_uids), len(recent), email_address)
+
+        # バッチで ENVELOPE を取得（一度に大量取得するとサーバーが応答しない場合がある）
+        raw = {}
+        batch = 100
+        for i in range(0, len(recent), batch):
+            chunk = recent[i:i + batch]
+            try:
+                raw.update(self._imap.fetch(chunk, ['ENVELOPE']))
+            except Exception:
+                continue
+
+        email_lower = email_address.lower()
+        matching = []
+        for uid, data in raw.items():
+            envelope = data.get(b'ENVELOPE')
+            if not envelope:
+                continue
+            addrs = (envelope.from_ if field == 'from' else envelope.to) or []
+            for addr in addrs:
+                mailbox = (addr.mailbox or b'').decode('utf-8', errors='replace').lower()
+                host = (addr.host or b'').decode('utf-8', errors='replace').lower()
+                full = f'{mailbox}@{host}'
+                if email_lower == full:
+                    matching.append(uid)
+                    break
+        logger.info('_scan_for_address: マッチ件数=%d', len(matching))
+        return matching
+
+    def search_emails_by_sender(self, folder_remote_name: str, sender_email: str, limit: int = 50) -> list[dict]:
+        """送信者アドレスで検索。複数の戦略を順に試す。"""
+        self._require_imap()
+        try:
+            self._imap.select_folder(folder_remote_name, readonly=True)
+            uids = self._imap.search(['FROM', sender_email])
+            logger.info('IMAP FROM検索: folder=%s email=%s → %d件', folder_remote_name, sender_email, len(uids))
+        except Exception as e:
+            raise ImapConnectionError(f'送信者検索エラー: {e}') from e
+
+        if not uids:
+            # フォールバック: ドメイン部分で再検索
+            domain = sender_email.split('@')[-1] if '@' in sender_email else ''
+            if domain:
+                try:
+                    uids = self._imap.search(['FROM', domain])
+                    # ドメイン一致だと過剰取得になるので、後で正確なアドレスで絞り込む
+                    if uids:
+                        raw = {}
+                        batch = 100
+                        for i in range(0, len(uids), batch):
+                            try:
+                                raw.update(self._imap.fetch(sorted(uids, reverse=True)[i:i+batch], ['ENVELOPE']))
+                            except Exception:
+                                continue
+                        email_lower = sender_email.lower()
+                        uids = []
+                        for uid, data in raw.items():
+                            envelope = data.get(b'ENVELOPE')
+                            if not envelope:
+                                continue
+                            for addr in (envelope.from_ or []):
+                                mailbox = (addr.mailbox or b'').decode('utf-8', errors='replace').lower()
+                                host = (addr.host or b'').decode('utf-8', errors='replace').lower()
+                                if email_lower == f'{mailbox}@{host}':
+                                    uids.append(uid)
+                                    break
+                        logger.info('ドメイン検索後絞り込み: %d件', len(uids))
+                except Exception:
+                    uids = []
+
+        if not uids:
+            # 最終フォールバック: 直近 500 通を手動スキャン
+            uids = self._scan_for_address(folder_remote_name, sender_email, field='from')
+
+        if not uids:
+            return []
+        recent_uids = sorted(uids, reverse=True)[:limit]
+        return self.fetch_emails_by_uids(folder_remote_name, recent_uids)
+
+    def search_emails_to_recipient(self, folder_remote_name: str, recipient_email: str, limit: int = 50) -> list[dict]:
+        """宛先アドレスで検索。複数の戦略を順に試す。"""
+        self._require_imap()
+        try:
+            self._imap.select_folder(folder_remote_name, readonly=True)
+            uids = self._imap.search(['TO', recipient_email])
+            logger.info('IMAP TO検索: folder=%s email=%s → %d件', folder_remote_name, recipient_email, len(uids))
+        except Exception as e:
+            raise ImapConnectionError(f'宛先検索エラー: {e}') from e
+
+        if not uids:
+            uids = self._scan_for_address(folder_remote_name, recipient_email, field='to')
+
+        if not uids:
+            return []
+        recent_uids = sorted(uids, reverse=True)[:limit]
+        return self.fetch_emails_by_uids(folder_remote_name, recent_uids)
+
+    # --------------------------------------------------
     # SMTP送信
     # --------------------------------------------------
 

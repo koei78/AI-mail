@@ -453,8 +453,10 @@ tr.expanded .row-expand-inner{
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 const ACCOUNTS = {{ accounts_json|safe }};
-const params = new URLSearchParams(location.search);
-let ACCOUNT_ID = params.get('account_id') ? parseInt(params.get('account_id')) : (ACCOUNTS[0] ? ACCOUNTS[0].id : null);
+const _savedId = localStorage.getItem('selectedAccountId');
+let ACCOUNT_ID = (_savedId && ACCOUNTS.find(a => a.id === parseInt(_savedId)))
+  ? parseInt(_savedId)
+  : (ACCOUNTS[0] ? ACCOUNTS[0].id : null);
 
 function esc(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -490,11 +492,11 @@ function avatarColor(email) {
 // =============================================
 function setAccount(acc) {
   ACCOUNT_ID = acc.id;
+  localStorage.setItem('selectedAccountId', String(acc.id));
   document.getElementById('account-avatar').textContent = avatarInitial(acc.email_address);
   document.getElementById('account-avatar').style.background = avatarColor(acc.email_address);
   document.getElementById('account-email-label').textContent = acc.email_address;
   document.getElementById('sb-account-name').textContent = acc.email_address;
-  history.replaceState(null, '', '/mail/classify/?account_id=' + acc.id);
   loadFolders();
   loadClassifications();
 }
@@ -559,6 +561,7 @@ if (initAcc) {
   document.getElementById('account-email-label').textContent = initAcc.email_address;
   document.getElementById('sb-account-name').textContent = initAcc.email_address;
   ACCOUNT_ID = initAcc.id;
+  localStorage.setItem('selectedAccountId', String(initAcc.id));
   loadFolders();
 }
 

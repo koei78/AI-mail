@@ -349,6 +349,38 @@ class GraphMailClient:
 
         return emails
 
+    def _emails_from_graph_messages(self, messages: list[dict]) -> list[dict]:
+        """Graph API の messages 配列を IMAP 互換のメタ形式へ変換する。"""
+        emails = []
+        for msg in messages:
+            try:
+                uid = _set_uid_cache(self.account.id, msg['id'])
+                f = msg.get('from', {}).get('emailAddress', {})
+                name = f.get('name', '')
+                addr = f.get('address', '')
+                from_email = f'{name} <{addr}>' if name else addr
+
+                to_addrs = []
+                for r in (msg.get('toRecipients') or []):
+                    a = (r.get('emailAddress') or {}).get('address', '')
+                    if a:
+                        to_addrs.append(a)
+
+                emails.append({
+                    'uid': uid,
+                    'message_id': msg.get('internetMessageId', ''),
+                    'subject': msg.get('subject') or '（件名なし）',
+                    'from_address': from_email,
+                    'to_addresses': to_addrs,
+                    'is_read': msg.get('isRead', False),
+                    'is_starred': (msg.get('flag') or {}).get('flagStatus') == 'flagged',
+                    'received_at': msg.get('receivedDateTime'),
+                })
+            except Exception as e:
+                logger.warning('Graph メール変換失敗: %s', e)
+                continue
+        return emails
+
     # --------------------------------------------------
     # メール本文取得
     # --------------------------------------------------
@@ -662,4 +694,44 @@ class GraphMailClient:
             return uids
         except GraphConnectionError as e:
             logger.warning('Graph 検索エラー: %s', e)
+            return []
+
+    def search_emails_by_sender(self, folder_remote_name: str, sender_email: str, limit: int = 50) -> list[dict]:
+        """送信者アドレスでメールを検索する（友達機能用）。"""
+        sender = (sender_email or '').strip().lower()
+        if not sender:
+            return []
+        try:
+            data = self._get(
+                f'{BASE_URL}/mailFolders/{folder_remote_name}/messages',
+                params={
+                    '$filter': f"from/emailAddress/address eq '{sender}'",
+                    '$select': 'id,subject,from,toRecipients,isRead,flag,receivedDateTime,internetMessageId',
+                    '$orderby': 'receivedDateTime desc',
+                    '$top': max(1, min(int(limit), 100)),
+                },
+            )
+            return self._emails_from_graph_messages(data.get('value', []))
+        except GraphConnectionError as e:
+            logger.warning('Graph 送信者検索エラー: %s', e)
+            return []
+
+    def search_emails_to_recipient(self, folder_remote_name: str, recipient_email: str, limit: int = 50) -> list[dict]:
+        """宛先アドレスでメールを検索する（友達機能用）。"""
+        recipient = (recipient_email or '').strip().lower()
+        if not recipient:
+            return []
+        try:
+            data = self._get(
+                f'{BASE_URL}/mailFolders/{folder_remote_name}/messages',
+                params={
+                    '$filter': f"toRecipients/any(r:r/emailAddress/address eq '{recipient}')",
+                    '$select': 'id,subject,from,toRecipients,isRead,flag,receivedDateTime,internetMessageId',
+                    '$orderby': 'receivedDateTime desc',
+                    '$top': max(1, min(int(limit), 100)),
+                },
+            )
+            return self._emails_from_graph_messages(data.get('value', []))
+        except GraphConnectionError as e:
+            logger.warning('Graph 宛先検索エラー: %s', e)
             return []

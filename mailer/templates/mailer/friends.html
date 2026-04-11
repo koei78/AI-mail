@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>友達 — はやメール</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#0078d4;--blue-hover:#106ebe;--blue-light:#deecf9;--blue-bg:#eff6fc;
+  --sidebar-bg:#faf9f8;--sidebar-w:200px;
+  --border:#edebe9;--text:#201f1e;--text-sub:#605e5c;--text-light:#a19f9d;
+  --hover:#f3f2f1;--shadow:0 3.2px 7.2px rgba(0,0,0,.13),0 .6px 1.8px rgba(0,0,0,.1);
+  --radius:4px;--hdr-h:40px;
+  --friends-w:280px;
+  --sent-bg:#dcf8c6;--recv-bg:#fff;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;color:var(--text);background:#fff}
+
+.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;color:#fff;flex-shrink:0;user-select:none}
+
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ===== トップバー ===== */
+#topbar{height:var(--hdr-h);background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px 0 0;flex-shrink:0;z-index:20}
+.tb-logo{width:var(--sidebar-w);height:100%;display:flex;align-items:center;padding:0 12px;gap:6px;border-right:1px solid var(--border);flex-shrink:0}
+.tb-logo img{height:24px;display:block}
+.tb-title{flex:1;padding:0 16px;font-size:.9rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.tb-spacer{flex:1}
+.tb-right{display:flex;align-items:center;gap:4px}
+.tb-account-btn{display:flex;align-items:center;gap:8px;border:none;background:transparent;cursor:pointer;padding:4px 8px;border-radius:var(--radius);transition:background .12s;margin-left:4px}
+.tb-account-btn:hover{background:var(--hover)}
+.tb-account-email{font-size:.78rem;color:var(--text-sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== メインエリア ===== */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ===== サイドバー ===== */
+#sidebar{width:var(--sidebar-w);background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb-back-btn{display:flex;align-items:center;gap:6px;margin:8px 10px 6px;padding:6px 12px;border:none;border-radius:var(--radius);color:white;font-size:.82rem;font-weight:600;background:var(--blue);cursor:pointer;transition:background .12s;text-decoration:none}
+.sb-back-btn:hover{background:var(--blue-hover)}
+.sb-friends-active{display:flex;align-items:center;gap:7px;margin:0 10px 4px;padding:7px 12px;border-radius:var(--radius);background:var(--blue-light);border:1px solid #b3d6f5;color:var(--blue);font-size:.8rem;font-weight:700;width:calc(100% - 20px)}
+.sb-section-label{padding:8px 14px 3px;font-size:.68rem;font-weight:600;color:var(--text-light);letter-spacing:.05em;text-transform:uppercase}
+.folder-item{margin:10px 10px;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 14px;cursor:pointer;border-radius:0;transition:background .1s;border-left:3px solid transparent;text-decoration:none;color:var(--text)}
+.folder-item:hover{background:var(--hover)}
+.fi-icon{width:20px;text-align:center;flex-shrink:0}
+.fi-icon svg{display:block;margin:auto}
+.folder-name{flex:1;font-size:.82rem}
+.folder-badge{background:var(--blue);color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;font-weight:700;min-width:18px;text-align:center}
+.folder-badge.zero{display:none}
+.sb-footer{margin-top:auto;padding:8px 12px;border-top:1px solid var(--border)}
+
+/* ===== ビュー切替はJSで直接操作 ===== */
+
+/* ===== 友達リストパネル ===== */
+#friends-panel{
+  width:var(--friends-w);flex-shrink:0;
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);background:#f7f8fa;
+}
+#friends-header{
+  padding:10px 12px 8px;border-bottom:1px solid var(--border);
+  background:#fff;flex-shrink:0;
+}
+#friends-header h2{font-size:.9rem;font-weight:700;margin-bottom:8px;color:var(--text)}
+
+/* 友達ヘッダー行 */
+#friends-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:0}
+#friends-header-row h2{font-size:.9rem;font-weight:700;color:var(--text)}
+#add-toggle-btn{
+  display:flex;align-items:center;gap:4px;
+  padding:5px 10px;border:none;border-radius:20px;
+  background:#107c10;color:#fff;font-size:.78rem;font-weight:600;cursor:pointer;
+  transition:background .12s;
+}
+#add-toggle-btn:hover{background:#0d6b0d}
+#add-toggle-btn.open{background:#d13438}
+
+/* 友達追加フォーム（折りたたみ） */
+#add-friend-form{
+  overflow:hidden;
+  max-height:0;
+  transition:max-height .28s ease, padding .28s ease, opacity .2s ease;
+  opacity:0;padding-top:0;
+}
+#add-friend-form.open{max-height:120px;opacity:1;padding-top:8px}
+.add-friend-row{display:flex;gap:5px;margin-top:5px}
+.add-friend-row:first-child{margin-top:0}
+.add-friend-row input{
+  flex:1;border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 8px;font-size:.8rem;outline:none;background:#fff;
+}
+.add-friend-row input:focus{border-color:var(--blue)}
+.add-friend-submit{
+  padding:6px 12px;background:var(--blue);color:#fff;border:none;
+  border-radius:var(--radius);font-size:.78rem;font-weight:600;cursor:pointer;
+  white-space:nowrap;transition:background .12s;
+}
+.add-friend-submit:hover{background:var(--blue-hover)}
+
+/* 友達一覧 */
+#friends-list{flex:1;overflow-y:auto}
+#friends-list::-webkit-scrollbar{width:4px}
+#friends-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.friend-item{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);
+  transition:background .1s;position:relative;background:#fff;
+}
+.friend-item:hover{background:#f0f4f8}
+.friend-item.active{background:var(--blue-bg);border-left:3px solid var(--blue)}
+.friend-item:not(.active){border-left:3px solid transparent}
+.friend-av{width:44px;height:44px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:#fff}
+.friend-info{flex:1;min-width:0}
+.friend-name{font-size:.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.friend-email{font-size:.72rem;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.friend-last-msg{font-size:.72rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.friend-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.friend-time{font-size:.68rem;color:var(--text-light);white-space:nowrap}
+.friend-del{
+  position:absolute;right:8px;top:8px;
+  width:20px;height:20px;border:none;background:transparent;
+  color:var(--text-light);cursor:pointer;border-radius:50%;
+  display:none;align-items:center;justify-content:center;font-size:.85rem;
+  transition:background .1s,color .1s;
+}
+.friend-item:hover .friend-del{display:flex}
+.friend-del:hover{background:#fde7e9;color:#d32f2f}
+#friends-empty{padding:32px 16px;text-align:center;color:var(--text-light);font-size:.85rem;flex-shrink:0}
+
+/* ===== スレッドエリア ===== */
+#thread-area{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#e5ddd5}
+
+/* 空状態 */
+#thread-empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;color:var(--text-light);background:#e5ddd5;
+}
+#thread-empty .te-icon{font-size:3.5rem;opacity:.4}
+#thread-empty .te-text{font-size:1rem;font-weight:500}
+#thread-empty .te-sub{font-size:.85rem}
+
+/* スレッドヘッダー */
+#thread-header{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px;background:#075e54;color:#fff;flex-shrink:0;
+}
+#th-avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;color:#fff}
+#th-info{flex:1;min-width:0}
+#th-name{font-size:.92rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#th-email{font-size:.72rem;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* メッセージ一覧 */
+#messages-wrap{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:6px}
+#messages-wrap::-webkit-scrollbar{width:5px}
+#messages-wrap::-webkit-scrollbar-thumb{background:rgba(0,0,0,.2);border-radius:3px}
+
+/* ローディング */
+#thread-loading{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--text-light);font-size:.88rem;background:#e5ddd5}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid rgba(0,0,0,.15);border-top-color:#075e54;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* メッセージバブル */
+.msg-wrap{display:flex;align-items:flex-end;gap:8px;max-width:75%}
+.msg-wrap.sent{align-self:flex-end;flex-direction:row-reverse}
+.msg-wrap.received{align-self:flex-start}
+.msg-av{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff}
+.msg-wrap.sent .msg-av{display:none}
+.msg-bubble{
+  background:var(--recv-bg);border-radius:12px 12px 12px 0;
+  padding:9px 12px;box-shadow:0 1px 2px rgba(0,0,0,.15);cursor:pointer;
+  transition:filter .1s;min-width:80px;max-width:100%;
+}
+.msg-bubble:hover{filter:brightness(.97)}
+.msg-wrap.sent .msg-bubble{background:var(--sent-bg);border-radius:12px 12px 0 12px}
+.msg-subject{font-size:.8rem;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.3}
+.msg-preview{font-size:.78rem;color:var(--text-sub);line-height:1.5;max-height:3.6em;overflow:hidden}
+.msg-time-row{display:flex;align-items:center;gap:6px;margin-top:4px;justify-content:flex-end}
+.msg-time{font-size:.65rem;color:var(--text-light);white-space:nowrap}
+.msg-direction{font-size:.62rem;color:var(--text-light)}
+
+/* 日付区切り */
+.date-sep{align-self:center;background:rgba(0,0,0,.18);color:#fff;font-size:.72rem;padding:3px 10px;border-radius:10px;margin:6px 0}
+
+/* バブル選択・展開 */
+.msg-bubble.selected{box-shadow:0 0 0 2px #075e54,0 2px 6px rgba(0,0,0,.18)}
+.msg-wrap.sent .msg-bubble.selected{box-shadow:0 0 0 2px #25d366,0 2px 6px rgba(0,0,0,.18)}
+.msg-body-wrap{
+  max-height:0;overflow:hidden;
+  transition:max-height .3s ease, opacity .25s ease;
+  opacity:0;
+}
+.msg-bubble.expanded .msg-body-wrap{max-height:400px;opacity:1}
+.msg-body-full{font-size:.78rem;color:var(--text-sub);line-height:1.6;white-space:pre-wrap;margin-top:8px;border-top:1px solid rgba(0,0,0,.08);padding-top:8px}
+.msg-loading{font-size:.75rem;color:var(--text-light);margin-top:6px;display:flex;align-items:center;gap:5px}
+.msg-spin{display:inline-block;width:12px;height:12px;border:1.5px solid rgba(0,0,0,.15);border-top-color:#075e54;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.msg-open-link{font-size:.72rem;color:var(--blue);text-decoration:none;display:inline-block;margin-top:6px}
+.msg-open-link:hover{text-decoration:underline}
+
+/* 返信エリア */
+#reply-bar{
+  display:flex;align-items:flex-end;gap:8px;
+  padding:8px 12px;background:#f0f0f0;border-top:1px solid #ddd;flex-shrink:0;
+}
+#reply-input{
+  flex:1;border:none;border-radius:22px;padding:9px 14px;
+  font-size:.85rem;outline:none;resize:none;background:#fff;
+  font-family:inherit;max-height:120px;overflow-y:auto;line-height:1.4;
+}
+.reply-send-btn{
+  width:40px;height:40px;border-radius:50%;background:#075e54;border:none;
+  color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:background .12s;
+}
+.reply-send-btn:hover{background:#128c7e}
+
+/* ===== アカウントドロップダウン ===== */
+#account-dropdown{display:none;position:fixed;top:44px;right:12px;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:var(--shadow);z-index:200;min-width:220px;overflow:hidden}
+
+/* ===== トースト ===== */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#323130;color:#fff;padding:10px 22px;border-radius:20px;font-size:.82rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:200;white-space:nowrap}
+#toast.show{opacity:1}
+#toast.ok{background:#388e3c}
+#toast.err{background:#d32f2f}
+
+#sidebar::-webkit-scrollbar{width:4px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ===== トップバー ===== -->
+<div id="topbar">
+  <div class="tb-logo">
+    <img src="/static/img/logo.png" alt="はやメール">
+  </div>
+  <div class="tb-title">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    友達
+  </div>
+  <div class="tb-spacer"></div>
+  <div class="tb-right">
+    <button class="tb-account-btn" id="account-toggle-btn">
+      <div class="avatar" id="account-avatar" style="background:#0078d4;width:28px;height:28px;font-size:.7rem">U</div>
+      <div class="tb-account-email" id="account-email-label">アカウント</div>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- アカウントドロップダウン -->
+<div id="account-dropdown">
+  <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:.75rem;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:.05em">アカウント切替</div>
+  <div id="account-list-dropdown"></div>
+</div>
+
+<!-- ===== メインエリア ===== -->
+<div id="main">
+
+  <!-- ===== サイドバー ===== -->
+  <div id="sidebar">
+    <a class="sb-back-btn" href="/mail/">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      受信トレイへ戻る
+    </a>
+    <div class="sb-friends-active">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      友達
+    </div>
+    <a class="folder-item" href="/mail/classify/">
+      <span class="fi-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+      <span class="folder-name">AI分類リスト</span>
+    </a>
+    <div class="sb-section-label">フォルダ</div>
+    <div id="folder-list">
+      <div style="padding:10px 16px;font-size:.8rem;color:var(--text-light)">読み込み中…</div>
+    </div>
+    <div class="sb-footer">
+      <div style="font-size:.75rem;color:var(--text-light);text-align:center" id="sb-account-name"></div>
+    </div>
+  </div>
+
+  <!-- ===== 友達リストパネル ===== -->
+  <div id="friends-panel">
+    <div id="friends-header">
+      <div id="friends-header-row">
+        <h2>友達リスト</h2>
+        <button id="add-toggle-btn" onclick="toggleAddForm()">
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          友達を追加
+        </button>
+      </div>
+      <div id="add-friend-form">
+        <div class="add-friend-row">
+          <input type="text" id="add-name" placeholder="表示名（省略可）">
+        </div>
+        <div class="add-friend-row">
+          <input type="email" id="add-email" placeholder="メールアドレス" onkeydown="if(event.key==='Enter')addFriend()">
+          <button class="add-friend-submit" onclick="addFriend()">追加</button>
+        </div>
+      </div>
+    </div>
+    <div id="friends-empty" style="display:none;padding:32px 16px;text-align:center;color:var(--text-light);font-size:.85rem">
+      <div style="font-size:2rem;margin-bottom:8px">👥</div>
+      まだ友達がいません。<br>メールアドレスを入力して追加してください。
+    </div>
+    <div id="friends-list"></div>
+  </div>
+
+  <!-- ===== スレッドエリア ===== -->
+  <div id="thread-area" style="display:none;flex:1;flex-direction:column">
+
+    <!-- 空状態 -->
+    <div id="thread-empty">
+      <div class="te-icon">💬</div>
+      <div class="te-text">友達を選択</div>
+      <div class="te-sub">左の一覧から友達を選ぶとメールのやり取りが表示されます</div>
+    </div>
+
+    <!-- ローディング -->
+    <div id="thread-loading" style="display:none">
+      <span class="spin"></span>メールを取得中…
+    </div>
+
+    <!-- スレッドヘッダー -->
+    <div id="thread-header" style="display:none">
+      <button onclick="goBackToFriends()" style="display:flex;align-items:center;gap:4px;padding:5px 8px;border:none;border-radius:var(--radius);background:rgba(255,255,255,.15);color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;flex-shrink:0;transition:background .12s" onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        戻る
+      </button>
+      <div id="th-avatar">?</div>
+      <div id="th-info">
+        <div id="th-name"></div>
+        <div id="th-email"></div>
+      </div>
+      <a id="th-reply-btn" href="#" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--radius);background:rgba(255,255,255,.2);color:#fff;font-size:.78rem;font-weight:600;text-decoration:none;transition:background .12s" onmouseover="this.style.background='rgba(255,255,255,.3)'" onmouseout="this.style.background='rgba(255,255,255,.2)'" onclick="return false">
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+        返信
+      </a>
+    </div>
+
+    <!-- メッセージ一覧 -->
+    <div id="messages-wrap" style="display:none"></div>
+
+    <!-- 返信バー -->
+    <div id="reply-bar" style="display:none">
+      <textarea id="reply-input" placeholder="返信を入力… (Ctrl+Enter で送信)" rows="1"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"
+        onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();sendReply()}"></textarea>
+      <button class="reply-send-btn" onclick="sendReply()" title="送信 (Ctrl+Enter)">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+
+  </div><!-- /thread-area -->
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+const ACCOUNTS = {{ accounts_json|safe }};
+const _savedId = localStorage.getItem('selectedAccountId');
+let ACCOUNT_ID = (_savedId && ACCOUNTS.find(a => a.id === parseInt(_savedId)))
+  ? parseInt(_savedId)
+  : (ACCOUNTS[0]?.id || null);
+
+let currentFriendEmail = null;
+
+// =============================================
+// ユーティリティ
+// =============================================
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+function avatarInitial(s){ return s ? s[0].toUpperCase() : '?' }
+
+function avatarColor(s){
+  const c=['#25d366','#0078d4','#d13438','#ca5010','#8764b8','#038387','#107c10'];
+  let h=0; for(let i=0;i<(s||'').length;i++) h=(h*31+s.charCodeAt(i))&0xffffffff;
+  return c[Math.abs(h)%c.length];
+}
+
+function toast(msg, type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show'+(type?' '+type:'');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.className='',3500);
+}
+
+function relativeTime(isoStr){
+  if(!isoStr) return '';
+  const d=new Date(isoStr), now=new Date();
+  const diff=(now-d)/1000;
+  if(diff<60) return 'たった今';
+  if(diff<3600) return Math.floor(diff/60)+'分前';
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const yesterday=new Date(today.getTime()-86400000);
+  if(d>=today) return d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  if(d>=yesterday) return '昨日';
+  if(d.getFullYear()===now.getFullYear()) return (d.getMonth()+1)+'/'+(d.getDate());
+  return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+}
+
+function formatDate(isoStr){
+  if(!isoStr) return '';
+  const d=new Date(isoStr);
+  return d.toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+function dateSeparator(isoStr){
+  if(!isoStr) return '';
+  const d=new Date(isoStr), now=new Date();
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const yesterday=new Date(today.getTime()-86400000);
+  if(d>=today) return '今日';
+  if(d>=yesterday) return '昨日';
+  return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
+}
+
+// =============================================
+// アカウント
+// =============================================
+function avatarInitialFromEmail(email){ return email ? email[0].toUpperCase() : 'U' }
+
+function renderAccountDropdown(){
+  document.getElementById('account-list-dropdown').innerHTML = ACCOUNTS.map(a=>`
+    <div onclick="selectAccount(${a.id})" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:.88rem;transition:background .1s" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+      <div class="avatar" style="background:${avatarColor(a.email_address)};width:28px;height:28px;font-size:.7rem">${avatarInitialFromEmail(a.email_address)}</div>
+      <span>${esc(a.email_address)}</span>
+    </div>
+  `).join('');
+}
+
+function selectAccount(id){
+  const acc=ACCOUNTS.find(a=>a.id===id);
+  if(!acc) return;
+  ACCOUNT_ID=acc.id;
+  localStorage.setItem('selectedAccountId', String(acc.id));
+  document.getElementById('account-avatar').textContent=avatarInitialFromEmail(acc.email_address);
+  document.getElementById('account-avatar').style.background=avatarColor(acc.email_address);
+  document.getElementById('account-email-label').textContent=acc.email_address;
+  document.getElementById('sb-account-name').textContent=acc.email_address;
+  document.getElementById('account-dropdown').style.display='none';
+  // アカウントが変わったらチャットを閉じて友達リストを再読み込み
+  if(currentFriendEmail){ goBackToFriends(); }
+  loadFolders();
+  loadFriends();
+}
+
+document.getElementById('account-toggle-btn').addEventListener('click', e=>{
+  e.stopPropagation();
+  const d=document.getElementById('account-dropdown');
+  d.style.display=d.style.display==='none'?'block':'none';
+});
+document.addEventListener('click',()=>{document.getElementById('account-dropdown').style.display='none'});
+
+// =============================================
+// フォルダ
+// =============================================
+const FOLDER_ICONS={
+  inbox:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
+  sent:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+  draft:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
+  trash:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>`,
+  spam:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  custom:`<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+};
+
+async function loadFolders(){
+  if(!ACCOUNT_ID) return;
+  const res=await fetch('/mail/api/folders/?account_id='+ACCOUNT_ID);
+  const data=await res.json();
+  if(!data.ok) return;
+  const el=document.getElementById('folder-list');
+  if(!data.folders.length){ el.innerHTML='<div style="padding:10px 16px;font-size:.8rem;color:var(--text-light)">フォルダなし</div>'; return; }
+  el.innerHTML=data.folders.map(f=>`
+    <a class="folder-item" href="/mail/?folder_id=${f.id}">
+      <span class="fi-icon">${FOLDER_ICONS[f.folder_type]||FOLDER_ICONS.custom}</span>
+      <span class="folder-name">${esc(f.name)}</span>
+      <span class="folder-badge${f.unread_count===0?' zero':''}">${f.unread_count}</span>
+    </a>
+  `).join('');
+}
+
+// =============================================
+// 友達リスト
+// =============================================
+let _friends = [];
+
+async function loadFriends(){
+  if(!ACCOUNT_ID) return;
+  const res=await fetch('/mail/api/friends/?account_id='+ACCOUNT_ID);
+  const data=await res.json();
+  if(!data.ok){ toast('友達リストの取得に失敗しました','err'); return; }
+  _friends=data.friends;
+  renderFriendList();
+  // バックグラウンドでIMAPをスキャンして最新メール件名を更新
+  syncFriendsLastMessage();
+}
+
+async function syncFriendsLastMessage(){
+  if(!ACCOUNT_ID||!_friends.length) return;
+  try {
+    const res=await fetch('/mail/api/friends/sync/?account_id='+ACCOUNT_ID);
+    const data=await res.json();
+    if(data.ok && data.friends && data.friends.length){
+      _friends=data.friends;
+      renderFriendList();
+    }
+  } catch(e){
+    // バックグラウンド処理なのでエラーは無視
+  }
+}
+
+function renderFriendList(){
+  const list=document.getElementById('friends-list');
+  const empty=document.getElementById('friends-empty');
+  if(!list||!empty) return;
+  if(!_friends.length){ empty.style.display='block'; list.innerHTML=''; return; }
+  empty.style.display='none';
+  list.innerHTML=_friends.map(f=>{
+    const name=f.display_name||f.email_address;
+    const initial=avatarInitial(f.display_name||f.email_address);
+    const color=avatarColor(f.email_address);
+    const lastTime=f.last_email_at?relativeTime(f.last_email_at):'';
+    const lastMsg=f.last_email_subject||'（まだメールなし）';
+    const isActive=f.email_address===currentFriendEmail;
+    return `
+    <div class="friend-item${isActive?' active':''}" onclick="selectFriend('${esc(f.email_address)}')">
+      <div class="friend-av" style="background:${color}">${esc(initial)}</div>
+      <div class="friend-info">
+        <div class="friend-name">${esc(name)}</div>
+        <div class="friend-email">${esc(f.email_address)}</div>
+        <div class="friend-last-msg">${esc(lastMsg)}</div>
+      </div>
+      <div class="friend-meta">
+        <span class="friend-time">${esc(lastTime)}</span>
+      </div>
+      <button class="friend-del" onclick="event.stopPropagation();removeFriend('${esc(f.email_address)}')" title="友達を削除">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function addFriend(){
+  const email=(document.getElementById('add-email').value||'').trim();
+  const name=(document.getElementById('add-name').value||'').trim();
+  if(!email){ toast('メールアドレスを入力してください','err'); return; }
+  const res=await fetch('/mail/api/friends/',{
+    method:'POST',
+    headers:{'X-CSRFToken':CSRF,'Content-Type':'application/json'},
+    body:JSON.stringify({email,name,account_id:ACCOUNT_ID}),
+  });
+  const data=await res.json();
+  if(!data.ok){ toast('追加失敗: '+(data.error||'不明'),'err'); return; }
+  toast(data.created?email+'を友達に追加しました':'既に友達です','ok');
+  document.getElementById('add-email').value='';
+  document.getElementById('add-name').value='';
+  // フォームを閉じる
+  document.getElementById('add-friend-form').classList.remove('open');
+  document.getElementById('add-toggle-btn').classList.remove('open');
+  await loadFriends();
+}
+
+async function removeFriend(email){
+  if(!confirm(email+'を友達リストから削除しますか？')) return;
+  const res=await fetch('/mail/api/friends/',{
+    method:'DELETE',
+    headers:{'X-CSRFToken':CSRF,'Content-Type':'application/json'},
+    body:JSON.stringify({email,account_id:ACCOUNT_ID}),
+  });
+  const data=await res.json();
+  if(!data.ok){ toast('削除失敗','err'); return; }
+  toast('削除しました');
+  if(currentFriendEmail===email){ currentFriendEmail=null; showThreadEmpty(); }
+  await loadFriends();
+}
+
+// =============================================
+// 友達追加フォームのトグル
+// =============================================
+function toggleAddForm(){
+  const form=document.getElementById('add-friend-form');
+  const btn=document.getElementById('add-toggle-btn');
+  const isOpen=form.classList.contains('open');
+  form.classList.toggle('open',!isOpen);
+  btn.classList.toggle('open',!isOpen);
+  if(!isOpen) document.getElementById('add-email').focus();
+}
+
+// =============================================
+// ビュー切替（LINEスタイル）
+// =============================================
+function goToChat(){
+  document.getElementById('friends-panel').style.display='none';
+  const ta=document.getElementById('thread-area');
+  ta.style.display='flex';
+  ta.style.flex='1';
+  ta.style.flexDirection='column';
+}
+
+function goBackToFriends(){
+  document.getElementById('friends-panel').style.display='flex';
+  document.getElementById('thread-area').style.display='none';
+  // スレッド内をリセット
+  document.getElementById('thread-empty').style.display='flex';
+  document.getElementById('thread-header').style.display='none';
+  document.getElementById('messages-wrap').style.display='none';
+  document.getElementById('reply-bar').style.display='none';
+  document.getElementById('thread-loading').style.display='none';
+  // 選択解除
+  currentFriendEmail=null;
+  renderFriendList();
+}
+
+// =============================================
+// スレッド表示
+// =============================================
+function showThreadEmpty(){
+  document.getElementById('thread-empty').style.display='flex';
+  document.getElementById('thread-header').style.display='none';
+  document.getElementById('messages-wrap').style.display='none';
+  document.getElementById('reply-bar').style.display='none';
+  document.getElementById('thread-loading').style.display='none';
+}
+
+function showThreadLoading(){
+  document.getElementById('thread-empty').style.display='none';
+  document.getElementById('thread-header').style.display='none';
+  document.getElementById('messages-wrap').style.display='none';
+  document.getElementById('reply-bar').style.display='none';
+  document.getElementById('thread-loading').style.display='flex';
+}
+
+async function selectFriend(email){
+  currentFriendEmail=email;
+  goToChat();          // ← 友達リストを隠してチャット画面へ切替
+  renderFriendList(); // active state update
+
+  const friend=_friends.find(f=>f.email_address===email);
+  const name=friend?(friend.display_name||friend.email_address):email;
+  const color=avatarColor(email);
+
+  // ヘッダー更新
+  document.getElementById('th-avatar').textContent=avatarInitial(name);
+  document.getElementById('th-avatar').style.background=color;
+  document.getElementById('th-name').textContent=name;
+  document.getElementById('th-email').textContent=email;
+  document.getElementById('th-reply-btn').href=`/mail/?auto_action=compose&to=${encodeURIComponent(email)}`;
+
+  showThreadLoading();
+
+  try {
+    const url=`/mail/api/friends/messages/?email=${encodeURIComponent(email)}`+(ACCOUNT_ID?`&account_id=${ACCOUNT_ID}`:'');
+    const res=await fetch(url);
+    const data=await res.json();
+    if(!data.ok){ toast('メール取得失敗: '+(data.error||'不明'),'err'); showThreadEmpty(); return; }
+
+    // ヘッダー表示
+    document.getElementById('thread-loading').style.display='none';
+    document.getElementById('thread-header').style.display='flex';
+    document.getElementById('messages-wrap').style.display='flex';
+    document.getElementById('reply-bar').style.display='flex';
+
+    // エラーがあればトーストで表示（メールは表示しつつ警告を出す）
+    if(data.warnings && data.warnings.length){
+      data.warnings.forEach(w => toast(w, 'err'));
+    }
+
+    renderMessages(data.messages, email, name, color);
+
+    // 最後にメール日時が更新されたら友達リストを再描画
+    await loadFriends();
+    renderFriendList();
+
+  } catch(e){
+    toast('通信エラー: '+e.message,'err');
+    showThreadEmpty();
+  }
+}
+
+function renderMessages(messages, friendEmail, friendName, friendColor){
+  const wrap=document.getElementById('messages-wrap');
+  if(!messages.length){
+    wrap.innerHTML=`<div style="align-self:center;color:var(--text-light);font-size:.85rem;margin-top:40px">${esc(friendName)}さんとのメールはまだありません</div>`;
+    return;
+  }
+
+  let lastDateSep='';
+  let html='';
+  messages.forEach(m=>{
+    const isSent=m.direction==='sent';
+    const dt=m.received_at||'';
+    const sep=dateSeparator(dt);
+    if(sep&&sep!==lastDateSep){
+      html+=`<div class="date-sep">${esc(sep)}</div>`;
+      lastDateSep=sep;
+    }
+    const initial=isSent?'自':avatarInitial(friendName);
+    const color=isSent?'#667':friendColor;
+    const bodyTxt=(m.body_text||'').trim();
+    const hasBody=bodyTxt.length>0;
+    const bodyFull=hasBody?esc(bodyTxt.length>2000?bodyTxt.slice(0,2000)+'…':bodyTxt):'';
+    const loadedAttr=hasBody?' data-loaded="1"':'';
+    const expandedClass=hasBody?' expanded':'';
+    html+=`
+    <div class="msg-wrap ${isSent?'sent':'received'}" data-uid="${m.uid}" data-folder-id="${m.folder_id||''}" data-folder-remote="${esc(m.folder_remote||'')}">
+      <div class="msg-av" style="background:${color}">${esc(initial)}</div>
+      <div class="msg-bubble${expandedClass}" onclick="toggleBubble(this,${m.uid},'${esc(m.folder_remote||'')}')">
+        <div class="msg-subject">${esc(m.subject||'（件名なし）')}</div>
+        <div class="msg-preview"${hasBody?' style="display:none"':''}>タップして本文を表示</div>
+        <div class="msg-body-wrap">
+          <div class="msg-body-full"${loadedAttr}>${bodyFull}</div>
+        </div>
+        <div class="msg-time-row">
+          <span class="msg-direction">${isSent?'📤 送信':'📥 受信'}</span>
+          <span class="msg-time">${esc(formatDate(dt))}</span>
+        </div>
+        ${m.folder_id?`<a class="msg-open-link" href="/mail/?auto_open_uid=${m.uid}&auto_open_folder=${m.folder_id}" onclick="event.stopPropagation()">受信トレイで開く →</a>`:''}
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML=html;
+  // 一番下にスクロール
+  wrap.scrollTop=wrap.scrollHeight;
+}
+
+// バブルクリックで本文展開（IMAP から取得）
+const _bodyCache={};
+async function toggleBubble(bubble, uid, folderRemote){
+  if(bubble.classList.contains('expanded')){
+    bubble.classList.remove('expanded','selected');
+    return;
+  }
+  // 他のバブルをすべて閉じる
+  document.querySelectorAll('.msg-bubble.expanded').forEach(b=>{
+    b.classList.remove('expanded','selected');
+  });
+  bubble.classList.add('selected'); // ハイライトをすぐに表示
+
+  const bodyDiv=bubble.querySelector('.msg-body-full');
+  const previewDiv=bubble.querySelector('.msg-preview');
+  if(bodyDiv.dataset.loaded){
+    bubble.classList.add('expanded');
+    return;
+  }
+  // フォルダIDをラップ要素から取得
+  const wrap=bubble.closest('.msg-wrap');
+  const folderId=wrap?.dataset.folderId;
+  if(!folderId||!uid){ bubble.classList.add('expanded'); return; }
+
+  previewDiv.textContent='読み込み中…';
+  try {
+    const url=`/mail/api/emails/${uid}/?folder_id=${folderId}`+(ACCOUNT_ID?`&account_id=${ACCOUNT_ID}`:'');
+    const res=await fetch(url);
+    const data=await res.json();
+    if(data.ok){
+      const body=data.email?.body_text||data.email?.body_html_raw||'（本文なし）';
+      bodyDiv.textContent=body.length>2000?body.slice(0,2000)+'…':body;
+      previewDiv.textContent=body.slice(0,100)+(body.length>100?'…':'');
+      bodyDiv.dataset.loaded='1';
+    } else {
+      previewDiv.textContent='本文の取得に失敗しました';
+    }
+  } catch(e){
+    previewDiv.textContent='通信エラー';
+  }
+  bubble.classList.add('expanded');
+}
+
+// =============================================
+// 返信送信
+// =============================================
+async function sendReply(){
+  const body=(document.getElementById('reply-input').value||'').trim();
+  if(!body){ toast('本文を入力してください','err'); return; }
+  if(!currentFriendEmail){ return; }
+
+  const friend=_friends.find(f=>f.email_address===currentFriendEmail);
+  const subj='Re: '+(friend?.last_email_subject||'');
+
+  try {
+    const res=await fetch('/mail/api/send/',{
+      method:'POST',
+      headers:{'X-CSRFToken':CSRF,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        account_id:ACCOUNT_ID,
+        to:[currentFriendEmail],
+        subject:subj,
+        body,
+      }),
+    });
+    const data=await res.json();
+    if(data.ok){
+      toast('送信しました ✉️','ok');
+      document.getElementById('reply-input').value='';
+      document.getElementById('reply-input').style.height='auto';
+      // スレッドを再読み込み
+      await selectFriend(currentFriendEmail);
+    } else {
+      toast('送信失敗: '+(data.error||'不明'),'err');
+    }
+  } catch(e){
+    toast('通信エラー: '+e.message,'err');
+  }
+}
+
+// =============================================
+// 診断（ブラウザコンソールで debugFriend('email@example.com') を実行）
+// =============================================
+async function debugFriend(email){
+  const url='/mail/api/friends/debug/?account_id='+ACCOUNT_ID+'&email='+encodeURIComponent(email||currentFriendEmail||'');
+  const res=await fetch(url);
+  const d=await res.json();
+  console.group('🔍 友達メール診断');
+  console.log('受信トレイフォルダ:', d.inbox_remote_name, '(found:', d.inbox_found, ')');
+  console.log('全フォルダ:', d.all_folders);
+  console.log('受信トレイ総件数:', d.total_uids);
+  console.log('IMAP FROM検索結果件数:', d.imap_search_result_count, d.imap_search_error||'');
+  console.log('検索対象メール(正規化):', d.target_email_normalized);
+  console.log('最新50件のfrom_address:', d.sample_from_addresses);
+  console.log('一致したfrom_address:', d.matching_from_addresses);
+  console.groupEnd();
+  alert('コンソール(F12)を確認してください\n受信トレイ:'+d.inbox_remote_name+'\n総件数:'+d.total_uids+'\nIMAP検索:'+d.imap_search_result_count+'件\n一致:'+JSON.stringify(d.matching_from_addresses));
+  return d;
+}
+
+// =============================================
+// 初期化
+// =============================================
+renderAccountDropdown();
+const initAcc=ACCOUNTS.find(a=>a.id===ACCOUNT_ID)||ACCOUNTS[0];
+if(initAcc){
+  ACCOUNT_ID=initAcc.id;
+  localStorage.setItem('selectedAccountId', String(initAcc.id));
+  document.getElementById('account-avatar').textContent=avatarInitialFromEmail(initAcc.email_address);
+  document.getElementById('account-avatar').style.background=avatarColor(initAcc.email_address);
+  document.getElementById('account-email-label').textContent=initAcc.email_address;
+  document.getElementById('sb-account-name').textContent=initAcc.email_address;
+  loadFolders();
+}
+
+loadFriends();
+showThreadEmpty();
+</script>
+</body>
+</html>
