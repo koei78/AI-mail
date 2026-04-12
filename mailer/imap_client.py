@@ -6,11 +6,11 @@ import smtplib
 import logging
 import ssl
 from email import policy
-from email.header import decode_header, make_header
+from email.header import Header, decode_header, make_header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.parser import BytesParser
-from email.utils import parseaddr
+from email.utils import formataddr, parseaddr
 
 import imapclient
 
@@ -54,6 +54,12 @@ def _parse_addresses(header_value: str) -> list[str]:
     if not header_value:
         return []
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
+
+
+def _format_from_header(display_name: str, email_address: str) -> str:
+    """日本語表示名を含んでも安全なFromヘッダー文字列を作る。"""
+    safe_name = str(Header(display_name or '', 'utf-8')) if display_name else ''
+    return formataddr((safe_name, email_address))
 
 
 def _get_oauth2_access_token(account) -> str:
@@ -743,7 +749,7 @@ class MailClient:
                 msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
         msg['Subject'] = subject
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['From'] = _format_from_header(self.account.display_name, self.account.email_address)
         msg['To'] = ', '.join(to)
         if cc:
             msg['Cc'] = ', '.join(cc)
@@ -833,7 +839,7 @@ class MailClient:
             msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
 
         msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['From'] = _format_from_header(self.account.display_name, self.account.email_address)
         msg['To'] = recipient_email
         if message_id:
             msg['In-Reply-To'] = message_id
@@ -901,7 +907,7 @@ class MailClient:
             msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
 
         msg['Subject'] = f'Fwd: {subject}'
-        msg['From'] = f'{self.account.display_name} <{self.account.email_address}>'
+        msg['From'] = _format_from_header(self.account.display_name, self.account.email_address)
         msg['To'] = ', '.join(to)
 
         raw_bytes = msg.as_bytes()
