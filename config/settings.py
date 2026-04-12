@@ -24,6 +24,12 @@ _allowed = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()]
 ALLOWED_HOSTS += ['.onrender.com']  # Render ドメインを自動許可
 
+# SOCKS5プロキシ設定（固定値）
+SMTP_PROXY_HOST = '133.88.122.180'
+SMTP_PROXY_PORT = 1080
+SMTP_PROXY_USER = 'koei78'
+SMTP_PROXY_PASS = 'koei9081'
+
 # アプリケーション定義
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -191,3 +197,9 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute='*'),  # 毎分チェック
     },
 }
+CSRF_TRUSTED_ORIGINS = [
+    "https://hayamail.jp",
+]
+
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True

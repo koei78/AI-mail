@@ -190,6 +190,52 @@ def _guess_folder_type(remote_name: str) -> str:
 
 
 # =============================
+# SOCKS5プロキシ対応SMTPクラス
+# =============================
+
+class _ProxySMTP(smtplib.SMTP):
+    """SOCKS5プロキシ経由のSMTP（STARTTLS用）"""
+
+    def __init__(self, host, port, proxy_host, proxy_port,
+                 proxy_user=None, proxy_pass=None, timeout=30):
+        self._socks_host = proxy_host
+        self._socks_port = proxy_port
+        self._socks_user = proxy_user
+        self._socks_pass = proxy_pass
+        super().__init__(host, port, timeout=timeout)
+
+    def _get_socket(self, host, port, timeout):
+        import socks as _socks
+        s = _socks.socksocket()
+        s.set_proxy(_socks.SOCKS5, self._socks_host, self._socks_port,
+                    username=self._socks_user, password=self._socks_pass)
+        s.settimeout(timeout)
+        s.connect((host, port))
+        return s
+
+
+class _ProxySMTP_SSL(smtplib.SMTP_SSL):
+    """SOCKS5プロキシ経由のSMTP_SSL（SSL直接接続用）"""
+
+    def __init__(self, host, port, proxy_host, proxy_port,
+                 proxy_user=None, proxy_pass=None, context=None, timeout=30):
+        self._socks_host = proxy_host
+        self._socks_port = proxy_port
+        self._socks_user = proxy_user
+        self._socks_pass = proxy_pass
+        super().__init__(host, port, context=context, timeout=timeout)
+
+    def _get_socket(self, host, port, timeout):
+        import socks as _socks
+        s = _socks.socksocket()
+        s.set_proxy(_socks.SOCKS5, self._socks_host, self._socks_port,
+                    username=self._socks_user, password=self._socks_pass)
+        s.settimeout(timeout)
+        s.connect((host, port))
+        return self.context.wrap_socket(s, server_hostname=host)
+
+
+# =============================
 # メインクライアントクラス
 # =============================
 
@@ -687,6 +733,12 @@ class MailClient:
 
     def _build_smtp(self):
         """SMTPサーバーへ接続してログインしたインスタンスを返す"""
+        from django.conf import settings as _settings
+        proxy_host = getattr(_settings, 'SMTP_PROXY_HOST', '')
+        proxy_port = int(getattr(_settings, 'SMTP_PROXY_PORT', 1080))
+        proxy_user = getattr(_settings, 'SMTP_PROXY_USER', None) or None
+        proxy_pass = getattr(_settings, 'SMTP_PROXY_PASS', None) or None
+
         ssl_context = None
         if not self.account.ssl_verify:
             ssl_context = ssl.create_default_context()
@@ -698,7 +750,11 @@ class MailClient:
             if auth_type == 'oauth2':
                 import base64
                 access_token = _get_oauth2_access_token(self.account)
-                smtp = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+                if proxy_host:
+                    smtp = _ProxySMTP('smtp.gmail.com', 587, proxy_host, proxy_port,
+                                      proxy_user=proxy_user, proxy_pass=proxy_pass, timeout=30)
+                else:
+                    smtp = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
                 smtp.starttls(context=ssl_context)
                 auth_string = f'user={self.account.email_address}\x01auth=Bearer {access_token}\x01\x01'
                 encoded = base64.b64encode(auth_string.encode()).decode()
@@ -706,18 +762,37 @@ class MailClient:
                 return smtp
             password = self.account.get_password()
             if self.account.use_ssl:
-                smtp = smtplib.SMTP_SSL(
-                    self.account.smtp_host,
-                    self.account.smtp_port,
-                    context=ssl_context,
-                    timeout=30,
-                )
+                if proxy_host:
+                    smtp = _ProxySMTP_SSL(
+                        self.account.smtp_host,
+                        self.account.smtp_port,
+                        proxy_host, proxy_port,
+                        proxy_user=proxy_user, proxy_pass=proxy_pass,
+                        context=ssl_context,
+                        timeout=30,
+                    )
+                else:
+                    smtp = smtplib.SMTP_SSL(
+                        self.account.smtp_host,
+                        self.account.smtp_port,
+                        context=ssl_context,
+                        timeout=30,
+                    )
             else:
-                smtp = smtplib.SMTP(
-                    self.account.smtp_host,
-                    self.account.smtp_port,
-                    timeout=30,
-                )
+                if proxy_host:
+                    smtp = _ProxySMTP(
+                        self.account.smtp_host,
+                        self.account.smtp_port,
+                        proxy_host, proxy_port,
+                        proxy_user=proxy_user, proxy_pass=proxy_pass,
+                        timeout=30,
+                    )
+                else:
+                    smtp = smtplib.SMTP(
+                        self.account.smtp_host,
+                        self.account.smtp_port,
+                        timeout=30,
+                    )
                 smtp.starttls(context=ssl_context)
             smtp.login(self.account.username, password)
             return smtp
