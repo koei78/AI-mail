@@ -937,7 +937,8 @@ class MailClient:
             msg = MIMEMultipart('alternative')
             msg.attach(MIMEText(full_body, "plain", "utf-8"))
 
-        msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
+        reply_subject = f'Re: {subject}' if not subject.startswith('Re:') else subject
+        msg['Subject'] = str(Header(reply_subject, 'utf-8'))
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = recipient_email
         if message_id:
@@ -1008,7 +1009,7 @@ class MailClient:
             msg = MIMEMultipart('alternative')
             msg.attach(MIMEText(full_body, "plain", "utf-8"))
 
-        msg['Subject'] = f'Fwd: {subject}'
+        msg['Subject'] = str(Header(f'Fwd: {subject}', 'utf-8'))
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = ', '.join(to)
 
