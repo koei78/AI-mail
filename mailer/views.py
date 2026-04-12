@@ -1612,32 +1612,65 @@ def api_classify_emails(request):
         body = {}
     account_id = body.get('account_id') or request.GET.get('account_id')
 
-    try:
-        result = _classify_emails_for_user(request.user.id, account_id=int(account_id) if account_id else None)
-    except ValueError as exc:
-        return _json_error(str(exc), 500)
-    if result.get('no_accounts'):
-        return _json_error('メールアカウントが登録されていません')
-    return _json_ok(result)
-
-
-def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> dict:
-    """指定ユーザーの受信トレイに対してAI分類を実行して保存する。
-    api_classify_emails と Celery タスクの両方から呼ばれる純粋関数。"""
     import os as _os
+    import threading
+    from django.db import close_old_connections as _close_old_connections
+    from django.db import connection as _db_connection
+
     api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
     if not api_key:
-        raise ValueError('OPENAI_API_KEY が設定されていません')
+        return _json_error('OPENAI_API_KEY が設定されていません', 500)
 
+    # 収集フェーズ（同期・IMAP接続）
+    account_id_int = int(account_id) if account_id else None
+    to_classify, errors, no_accounts = _collect_emails_to_classify(request.user.id, account_id_int)
+
+    if no_accounts:
+        return _json_error('メールアカウントが登録されていません')
+    if not to_classify:
+        return _json_ok({'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors})
+
+    total = len(to_classify)
+
+    # バックグラウンドスレッド開始前に分類済み件数を確定（レースコンディション防止）
+    _before_qs = EmailClassification.objects.filter(account__user=request.user)
+    if account_id_int:
+        _before_qs = _before_qs.filter(account_id=account_id_int)
+    before_count = _before_qs.count()
+
+    # AI分類フェーズ（バックグラウンドスレッド）
+    def _run_in_background():
+        try:
+            _close_old_connections()
+            _run_ai_classification(to_classify, api_key)
+        except Exception as exc:
+            logger.error('バックグラウンド仕分けエラー user=%s: %s', request.user.id, exc)
+        finally:
+            _db_connection.close()
+
+    threading.Thread(target=_run_in_background, daemon=True).start()
+    return _json_ok({
+        'async': True,
+        'total': total,
+        'before_count': before_count,
+        'message': f'{total}件を分類中...',
+        'errors': errors,
+    })
+
+
+def _collect_emails_to_classify(user_id: int, account_id: int | None = None):
+    """IMAPからメタデータを収集して分類対象リストを返す（AI分類は行わない）。
+    戻り値: (to_classify, errors, no_accounts)
+    to_classify: [(account, folder, uid, subject, sender, message_id), ...]
+    """
     qs = MailAccount.objects.filter(user_id=user_id, is_active=True)
     if account_id:
         qs = qs.filter(id=account_id)
     accounts = list(qs)
     if not accounts:
-        return {'classified': 0, 'message': 'アカウントなし', 'errors': [], 'no_accounts': True}
+        return [], [], True
 
-    # 分類対象メールを収集（各アカウントの受信トレイから）
-    to_classify = []  # [(account, folder, uid, subject, sender, message_id), ...]
+    to_classify = []
     errors = []
 
     for account in accounts:
@@ -1646,7 +1679,6 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
             errors.append(f'[{account.email_address}] 受信トレイフォルダが見つかりません（フォルダ同期が必要かもしれません）')
             continue
 
-        # 既分類済みの UID セットを取得
         classified_uids = set(
             EmailClassification.objects
             .filter(account=account, folder=inbox)
@@ -1657,8 +1689,6 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
             client = _get_mail_client(account)
             client.connect_imap()
             if hasattr(client, 'fetch_recent_emails_meta'):
-                # Outlook(Graph API): 1回のAPIで最新50件のメタ情報を直接取得
-                # UID→GraphIDキャッシュ解決を経由しない
                 recent_emails = client.fetch_recent_emails_meta(inbox.remote_name, 50)
                 for em in recent_emails:
                     if em['uid'] not in classified_uids:
@@ -1670,7 +1700,6 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
                             em['message_id'],
                         ))
             else:
-                # IMAP/Gmail: IMAP UID は時系列順なので降順ソートで最新50件
                 all_uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)[:50]
                 target_uids = [u for u in all_uids if u not in classified_uids]
                 if target_uids:
@@ -1688,15 +1717,18 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
             logger.warning('分類用メール取得失敗 account=%s: %s', account.id, exc)
             errors.append(str(exc))
 
-    if not to_classify:
-        return {'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors}
+    return to_classify, errors, False
 
-    # OpenAI でバッチ分類（20件ずつ）
+
+def _run_ai_classification(to_classify: list, api_key: str) -> dict:
+    """to_classify リストに対して OpenAI 分類を実行して DB に保存する。"""
     import openai
     import json as _json
+    from django.db import transaction
 
     BATCH_SIZE = 20
     saved_count = 0
+    errors = []
 
     for i in range(0, len(to_classify), BATCH_SIZE):
         batch = to_classify[i:i + BATCH_SIZE]
@@ -1754,18 +1786,19 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
             summary = item.get('summary', '')[:200]
 
             try:
-                EmailClassification.objects.update_or_create(
-                    account=account,
-                    folder=folder,
-                    uid=uid,
-                    defaults={
-                        'message_id': message_id,
-                        'subject': subject[:500] if subject else '',
-                        'sender': sender[:255] if sender else '',
-                        'summary': summary,
-                        'category': category,
-                    },
-                )
+                with transaction.atomic():
+                    EmailClassification.objects.update_or_create(
+                        account=account,
+                        folder=folder,
+                        uid=uid,
+                        defaults={
+                            'message_id': message_id,
+                            'subject': subject[:500] if subject else '',
+                            'sender': sender[:255] if sender else '',
+                            'summary': summary,
+                            'category': category,
+                        },
+                    )
                 saved_count += 1
             except Exception as exc:
                 logger.warning('分類保存失敗 uid=%s: %s', uid, exc)
@@ -1775,6 +1808,25 @@ def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> di
         'message': f'{saved_count}件のメールを分類しました',
         'errors': errors,
     }
+
+
+def _classify_emails_for_user(user_id: int, account_id: int | None = None) -> dict:
+    """指定ユーザーの受信トレイに対してAI分類を実行して保存する。
+    api_classify_emails と Celery タスクの両方から呼ばれる純粋関数。"""
+    import os as _os
+    api_key = getattr(settings, 'OPENAI_API_KEY', None) or _os.environ.get('OPENAI_API_KEY', '')
+    if not api_key:
+        raise ValueError('OPENAI_API_KEY が設定されていません')
+
+    to_classify, errors, no_accounts = _collect_emails_to_classify(user_id, account_id)
+    if no_accounts:
+        return {'classified': 0, 'message': 'アカウントなし', 'errors': [], 'no_accounts': True}
+    if not to_classify:
+        return {'classified': 0, 'message': '新しく分類するメールはありません', 'errors': errors}
+
+    result = _run_ai_classification(to_classify, api_key)
+    result['errors'] = errors + result.get('errors', [])
+    return result
 
 
 def _serialize_schedule(schedule) -> dict:

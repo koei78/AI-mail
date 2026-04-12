@@ -347,6 +347,12 @@ tr.expanded .row-expand-inner{
         </button>
       </div>
 
+      <!-- 分類進捗バー（バックグラウンド処理中のみ表示） -->
+      <div id="classify-progress" style="display:none;padding:8px 16px;background:#e8f4fd;border-top:1px solid #b3d6f5;color:var(--blue);font-size:.85rem;display:none;align-items:center;gap:8px;">
+        <span class="spinner"></span>
+        <span id="classify-progress-text"></span>
+      </div>
+
       <!-- フィルターバー -->
       <div id="filter-bar">
         <span class="filter-label">絞り込み:</span>
@@ -635,7 +641,7 @@ function sortTable() {
 // =============================================
 function renderRows(items) {
   const tbody = document.getElementById('mail-tbody');
-  tbody.querySelectorAll('tr[data-uid]').forEach(r => r.remove());
+  tbody.querySelectorAll('tr[data-uid], tr[data-expand-for]').forEach(r => r.remove());
   const emptyRow = document.getElementById('empty-row');
 
   if (!items || !items.length) {
@@ -734,9 +740,10 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 document.getElementById('btn-classify').addEventListener('click', async () => {
   const btn = document.getElementById('btn-classify');
   const loadRow = document.getElementById('loading-row');
+  const progressBar = document.getElementById('classify-progress');
+  const progressText = document.getElementById('classify-progress-text');
   btn.disabled = true;
   loadRow.style.display = 'table-row';
-  toast('AIが分析中です…');
 
   try {
     const res = await fetch('/mail/api/classify/', {
@@ -745,17 +752,70 @@ document.getElementById('btn-classify').addEventListener('click', async () => {
       body: JSON.stringify(ACCOUNT_ID ? { account_id: ACCOUNT_ID } : {}),
     });
     const data = await res.json();
-    if (!data.ok) { toast('分類失敗: ' + (data.error || '不明'), 'error'); return; }
-    const errMsg = data.errors && data.errors.length ? '\n⚠️ ' + data.errors.join('\n⚠️ ') : '';
-    toast(data.message + errMsg, data.errors && data.errors.length ? 'error' : 'success');
-    const listRes = await fetch(classifyApiUrl());
-    const listData = await listRes.json();
-    if (listData.ok) renderRows(listData.classifications);
+
+    // 初期ローディング行は常に閉じる
+    loadRow.style.display = 'none';
+
+    if (!data.ok) {
+      toast('分類失敗: ' + (data.error || '不明'), 'error');
+      btn.disabled = false;
+      return;
+    }
+
+    if (!data.async) {
+      // 分類対象なし等の同期レスポンス（既存の分類結果をテーブルに表示）
+      loadClassifications();
+      toast(data.message, 'info');
+      btn.disabled = false;
+      return;
+    }
+
+    // バックグラウンド処理開始 — テーブル外のプログレスバーで進捗表示
+    const total = data.total;
+    // サーバー側でスレッド起動前に取得した件数を使う（レースコンディション防止）
+    const beforeCount = data.before_count || 0;
+    let lastCount = beforeCount;
+    let stableCount = 0;
+
+    progressText.textContent = `AIが分類中... 0 / ${total}件 (0%)`;
+    progressBar.style.display = 'flex';
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const listRes = await fetch(classifyApiUrl());
+        const listData = await listRes.json();
+        if (!listData.ok) return;
+
+        const current = listData.classifications.length;
+        const newCount = current - beforeCount;
+        const pct = total > 0 ? Math.min(100, Math.round(newCount / total * 100)) : 0;
+
+        progressText.textContent = `AIが分類中... ${newCount} / ${total}件 (${pct}%)`;
+        renderRows(listData.classifications);
+
+        if (current === lastCount) {
+          stableCount++;
+        } else {
+          stableCount = 0;
+        }
+        lastCount = current;
+
+        // 全件完了 or 30秒間（15回×2秒）変化なしで終了
+        if (newCount >= total || stableCount >= 15) {
+          clearInterval(pollInterval);
+          progressBar.style.display = 'none';
+          btn.disabled = false;
+          toast(`${newCount}件の分類が完了しました`, 'success');
+        }
+      } catch (e) {
+        // ポーリングエラーは無視して継続
+      }
+    }, 2000);
+
   } catch (e) {
     toast('通信エラー: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
     loadRow.style.display = 'none';
+    btn.disabled = false;
   }
 });
 
