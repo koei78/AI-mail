@@ -749,9 +749,9 @@ class MailClient:
         if attachments:
             msg = MIMEMultipart('mixed')
             alt = MIMEMultipart('alternative')
-            alt.attach(MIMEText(body, 'plain', 'utf-8'))
+            alt.attach(MIMEText(body, "plain", "utf-8"))
             if body_html:
-                alt.attach(MIMEText(body_html, 'html', 'utf-8'))
+                alt.attach(MIMEText(body_html, "html", "utf-8"))
             msg.attach(alt)
             for att in attachments:
                 maintype, _, subtype = att['content_type'].partition('/')
@@ -762,11 +762,14 @@ class MailClient:
                 msg.attach(part)
         else:
             msg = MIMEMultipart('alternative')
-            msg.attach(MIMEText(body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(body, "plain", "utf-8"))
             if body_html:
-                msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+                msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-        msg['Subject'] = subject
+        msg['Subject'] = str(Header(
+            f'Re: {subject}' if not subject.startswith('Re:') else subject,
+            "utf-8"
+        ))
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = ', '.join(to)
         if cc:
@@ -846,7 +849,7 @@ class MailClient:
         if attachments:
             msg = MIMEMultipart('mixed')
             alt = MIMEMultipart('alternative')
-            alt.attach(MIMEText(full_body, 'plain', 'utf-8'))
+            alt.attach(MIMEText(full_body, "plain", "utf-8"))
             msg.attach(alt)
             for att in attachments:
                 maintype, _, subtype = att['content_type'].partition('/')
@@ -857,7 +860,7 @@ class MailClient:
                 msg.attach(part)
         else:
             msg = MIMEMultipart('alternative')
-            msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(full_body, "plain", "utf-8"))
 
         msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
@@ -917,7 +920,7 @@ class MailClient:
         if attachments:
             msg = MIMEMultipart('mixed')
             alt = MIMEMultipart('alternative')
-            alt.attach(MIMEText(full_body, 'plain', 'utf-8'))
+            alt.attach(MIMEText(full_body, "plain", "utf-8"))
             msg.attach(alt)
             for att in attachments:
                 maintype, _, subtype = att['content_type'].partition('/')
@@ -928,7 +931,7 @@ class MailClient:
                 msg.attach(part)
         else:
             msg = MIMEMultipart('alternative')
-            msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(full_body, "plain", "utf-8"))
 
         msg['Subject'] = f'Fwd: {subject}'
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
