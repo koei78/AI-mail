@@ -1,7 +1,0 @@
-.git
-.env
-__pycache__
-*.pyc
-*.pyo
-staticfiles
-.claude

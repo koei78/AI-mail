@@ -22,7 +22,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 _allowed = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()]
-ALLOWED_HOSTS += ['.onrender.com', '.fly.dev']  # Render / Fly.io ドメインを自動許可
+ALLOWED_HOSTS += ['.onrender.com']  # Render ドメインを自動許可
 
 # アプリケーション定義
 INSTALLED_APPS = [
