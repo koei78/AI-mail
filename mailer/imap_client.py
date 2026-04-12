@@ -2,6 +2,7 @@
 mailer/imap_client.py
 IMAP/SMTPの接続・操作をまとめたクライアントクラス
 """
+import base64
 import smtplib
 import logging
 import ssl
@@ -13,10 +14,21 @@ from email.parser import BytesParser
 from email.utils import formataddr, parseaddr
 
 import imapclient
+import requests as _requests
 
 from .models import MailAccount
 
 logger = logging.getLogger(__name__)
+
+
+def _make_from_header(display_name: str, email_address: str) -> str:
+    """RFC 5322 準拠の From ヘッダー値を生成する（非ASCII文字を自動エンコード）"""
+    name = display_name or ''
+    try:
+        name.encode('ascii')
+        return formataddr((name, email_address)) if name else email_address
+    except UnicodeEncodeError:
+        return formataddr((str(Header(name, 'utf-8')), email_address))
 
 
 # =============================
@@ -55,13 +67,6 @@ def _parse_addresses(header_value: str) -> list[str]:
         return []
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
-
-def _format_from_header(display_name: str, email_address: str) -> str:
-    """日本語表示名を含んでも安全なFromヘッダー文字列を作る。"""
-    safe_name = str(Header(display_name or '', 'utf-8')) if display_name else ''
-    return formataddr((safe_name, email_address))
-
-
 def _get_oauth2_access_token(account) -> str:
     """OAuth2アカウントのアクセストークンを取得（必要に応じてリフレッシュ）"""
     from django.conf import settings as _settings
@@ -80,6 +85,19 @@ def _get_oauth2_access_token(account) -> str:
     creds.refresh(GoogleRequest())
     return creds.token
 
+
+def _send_via_gmail_api(account, raw_bytes: bytes) -> None:
+    """Gmail API経由でメールを送信する（auth_type='oauth2'専用）"""
+    access_token = _get_oauth2_access_token(account)
+    encoded = base64.urlsafe_b64encode(raw_bytes).decode()
+    resp = _requests.post(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
+        json={'raw': encoded},
+        timeout=30,
+    )
+    if not resp.ok:
+        raise SmtpConnectionError(f'Gmail API送信エラー ({resp.status_code}): {resp.text[:200]}')
 
 
 def _parse_body(msg) -> tuple[str, str, bool, list]:
@@ -749,7 +767,7 @@ class MailClient:
                 msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
         msg['Subject'] = subject
-        msg['From'] = _format_from_header(self.account.display_name, self.account.email_address)
+        msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = ', '.join(to)
         if cc:
             msg['Cc'] = ', '.join(cc)
@@ -759,9 +777,12 @@ class MailClient:
         raw_bytes = msg.as_bytes()
 
         try:
-            smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, all_recipients, raw_bytes)
-            smtp.quit()
+            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+                _send_via_gmail_api(self.account, raw_bytes)
+            else:
+                smtp = self._build_smtp()
+                smtp.sendmail(self.account.email_address, all_recipients, raw_bytes)
+                smtp.quit()
         except SmtpConnectionError:
             raise
         except Exception as e:
@@ -839,7 +860,7 @@ class MailClient:
             msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
 
         msg['Subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
-        msg['From'] = _format_from_header(self.account.display_name, self.account.email_address)
+        msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = recipient_email
         if message_id:
             msg['In-Reply-To'] = message_id
@@ -848,9 +869,12 @@ class MailClient:
         raw_bytes = msg.as_bytes()
 
         try:
-            smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, [recipient_email], raw_bytes)
-            smtp.quit()
+            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+                _send_via_gmail_api(self.account, raw_bytes)
+            else:
+                smtp = self._build_smtp()
+                smtp.sendmail(self.account.email_address, [recipient_email], raw_bytes)
+                smtp.quit()
         except SmtpConnectionError:
             raise
         except Exception as e:
@@ -907,15 +931,18 @@ class MailClient:
             msg.attach(MIMEText(full_body, 'plain', 'utf-8'))
 
         msg['Subject'] = f'Fwd: {subject}'
-        msg['From'] = _format_from_header(self.account.display_name, self.account.email_address)
+        msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
         msg['To'] = ', '.join(to)
 
         raw_bytes = msg.as_bytes()
 
         try:
-            smtp = self._build_smtp()
-            smtp.sendmail(self.account.email_address, to, raw_bytes)
-            smtp.quit()
+            if getattr(self.account, 'auth_type', 'password') == 'oauth2':
+                _send_via_gmail_api(self.account, raw_bytes)
+            else:
+                smtp = self._build_smtp()
+                smtp.sendmail(self.account.email_address, to, raw_bytes)
+                smtp.quit()
         except SmtpConnectionError:
             raise
         except Exception as e:
