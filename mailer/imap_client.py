@@ -31,6 +31,24 @@ def _make_from_header(display_name: str, email_address: str) -> str:
         return formataddr((str(Header(name, 'utf-8')), email_address))
 
 
+def _encode_addr(address: str) -> str:
+    """To/Cc ヘッダー用: 表示名が非ASCIIでも RFC 2047 に変換する"""
+    name, addr = parseaddr(address)
+    if not addr:
+        # parseaddr 失敗: <...> から直接抽出を試みる
+        import re as _re
+        m = _re.search(r'<([^>]+)>', address)
+        addr = m.group(1).strip() if m else address.strip()
+        name = ''
+    if not name:
+        return addr
+    try:
+        name.encode('ascii')
+        return formataddr((name, addr))
+    except UnicodeEncodeError:
+        return formataddr((str(Header(name, 'utf-8')), addr))
+
+
 # =============================
 # 独自例外クラス
 # =============================
@@ -846,9 +864,9 @@ class MailClient:
             "utf-8"
         ))
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
-        msg['To'] = ', '.join(to)
+        msg['To'] = ', '.join(_encode_addr(a) for a in to)
         if cc:
-            msg['Cc'] = ', '.join(cc)
+            msg['Cc'] = ', '.join(_encode_addr(a) for a in cc)
         # BCC: ヘッダーには含めず送信先リストにのみ追加
 
         all_recipients = to + (cc or []) + (bcc or [])
@@ -914,7 +932,7 @@ class MailClient:
         subject = original_data.get('subject', '')
         from_address = original_data.get('from_address', '')
         _, reply_to_email = parseaddr(from_address)
-        recipient_email = (reply_to_email or from_address).strip()
+        recipient_email = reply_to_email.strip() if reply_to_email else _encode_addr(from_address)
         message_id = original_data.get('message_id', '')
         body_text = original_data.get('body_text', '')
 
@@ -940,7 +958,7 @@ class MailClient:
         reply_subject = f'Re: {subject}' if not subject.startswith('Re:') else subject
         msg['Subject'] = str(Header(reply_subject, 'utf-8'))
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
-        msg['To'] = recipient_email
+        msg['To'] = _encode_addr(recipient_email)
         if message_id:
             msg['In-Reply-To'] = message_id
             msg['References'] = message_id
@@ -1011,7 +1029,7 @@ class MailClient:
 
         msg['Subject'] = str(Header(f'Fwd: {subject}', 'utf-8'))
         msg['From'] = _make_from_header(self.account.display_name or '', self.account.email_address)
-        msg['To'] = ', '.join(to)
+        msg['To'] = ', '.join(_encode_addr(a) for a in to)
 
         raw_bytes = msg.as_bytes()
 
