@@ -186,6 +186,12 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Tokyo'
 
+# rediss://（TLS）使用時のSSL設定（Upstash等）
+if CELERY_BROKER_URL.startswith('rediss://'):
+    import ssl as _ssl
+    CELERY_BROKER_USE_SSL = {'ssl_cert_reqs': _ssl.CERT_NONE}
+    CELERY_REDIS_BACKEND_USE_SSL = {'ssl_cert_reqs': _ssl.CERT_NONE}
+
 # Celery Beatスケジュール
 CELERY_BEAT_SCHEDULE = {
     'sync-all-accounts': {
