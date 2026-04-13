@@ -3,7 +3,7 @@ services:
     name: aimail
     runtime: python
     buildCommand: ./build.sh
-    startCommand: gunicorn config.wsgi:application --timeout 300 --workers 2
+    startCommand: ./start.sh
     envVars:
       - key: SECRET_KEY
         generateValue: true
