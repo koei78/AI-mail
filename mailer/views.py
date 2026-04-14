@@ -397,31 +397,59 @@ def api_folder_empty(request, folder_id):
     return _json_ok()
 
 
+def _emails_cache_key(folder_id, page):
+    return f'emails_list:{folder_id}:{page}'
+
+
+def invalidate_emails_cache(folder_id):
+    """フォルダのメール一覧キャッシュを全ページ削除する"""
+    from django.core.cache import cache
+    # 現実的なページ数（最大20ページ）を無効化
+    cache.delete_many([_emails_cache_key(folder_id, p) for p in range(1, 21)])
+
+
 @login_required
 def api_emails(request):
-    """GET: メール一覧（?folder_id=, ?page=）"""
+    """GET: メール一覧（?folder_id=, ?page=, ?refresh=1）"""
+    from django.core.cache import cache
+
     folder_id = request.GET.get('folder_id')
     if not folder_id:
         return _json_error('folder_id パラメータが必要です')
 
     page = max(1, int(request.GET.get('page', 1)))
     per_page = 50
+    force_refresh = request.GET.get('refresh') == '1'
 
     folder = _get_folder_or_403(folder_id, request.user)
     if isinstance(folder, JsonResponse):
         return folder
 
+    # キャッシュヒット（強制リフレッシュでなければ）
+    cache_key = _emails_cache_key(folder.id, page)
+    if not force_refresh:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return JsonResponse(cached)
+
     try:
         client = _get_mail_client(folder.account)
-        client.connect_imap()
-        all_uids = sorted(client.get_folder_uids(folder.remote_name), reverse=True)
-        total = len(all_uids)
-
-        offset = (page - 1) * per_page
-        page_uids = all_uids[offset:offset + per_page]
-        emails_data = client.fetch_emails_by_uids(folder.remote_name, page_uids)
-        client.disconnect_imap()
+        if hasattr(client, 'fetch_emails_by_page'):
+            # Graph API クライアント（Outlook）: 1〜2コールで完結
+            emails_data, total = client.fetch_emails_by_page(folder.remote_name, page, per_page)
+            page_uids = [e['uid'] for e in emails_data]
+        else:
+            # IMAP クライアント（通常/Gmail）: UID一覧→バッチENVELOPE取得
+            client.connect_imap()
+            all_uids = sorted(client.get_folder_uids(folder.remote_name), reverse=True)
+            total = len(all_uids)
+            offset = (page - 1) * per_page
+            page_uids = all_uids[offset:offset + per_page]
+            emails_data = client.fetch_emails_by_uids(folder.remote_name, page_uids)
+            client.disconnect_imap()
     except ImapConnectionError as e:
+        return _json_error(str(e))
+    except Exception as e:
         return _json_error(str(e))
 
     # ラベル情報を付加
@@ -447,7 +475,10 @@ def api_emails(request):
         }
         for e in emails_data
     ]
-    return _json_ok({'emails': data, 'total': total, 'page': page, 'per_page': per_page})
+    payload = {'ok': True, 'emails': data, 'total': total, 'page': page, 'per_page': per_page}
+    # 90秒キャッシュ（Gmail/Outlookの重い接続を再利用）
+    cache.set(cache_key, payload, timeout=90)
+    return JsonResponse(payload)
 
 
 @login_required
@@ -503,6 +534,7 @@ def api_email_detail(request, uid):
             if is_trash:
                 client.delete_email(uid, folder.remote_name)
                 client.disconnect_imap()
+                invalidate_emails_cache(folder.id)
                 return _json_ok({'action': 'deleted'})
             else:
                 trash_folder = MailFolder.objects.filter(
@@ -511,10 +543,14 @@ def api_email_detail(request, uid):
                 if trash_folder:
                     client.move_email(uid, folder.remote_name, trash_folder.remote_name)
                     client.disconnect_imap()
+                    invalidate_emails_cache(folder.id)
+                    if trash_folder:
+                        invalidate_emails_cache(trash_folder.id)
                     return _json_ok({'action': 'trashed'})
                 else:
                     client.delete_email(uid, folder.remote_name)
                     client.disconnect_imap()
+                    invalidate_emails_cache(folder.id)
                     return _json_ok({'action': 'deleted'})
         except ImapConnectionError as e:
             return _json_error(str(e))
@@ -869,6 +905,8 @@ def api_send(request):
             attachments=attachments or None,
             save_to_sent=save_to_sent,
         )
+        if sent_folder:
+            invalidate_emails_cache(sent_folder.id)
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
