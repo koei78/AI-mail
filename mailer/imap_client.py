@@ -86,10 +86,16 @@ def _parse_addresses(header_value: str) -> list[str]:
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
 def _get_oauth2_access_token(account) -> str:
-    """OAuth2アカウントのアクセストークンを取得（必要に応じてリフレッシュ）"""
+    """OAuth2アカウントのアクセストークンを取得（キャッシュ優先、必要に応じてリフレッシュ）"""
+    from django.core.cache import cache
     from django.conf import settings as _settings
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request as GoogleRequest
+
+    cache_key = f'gmail_token:{account.id}'
+    cached_token = cache.get(cache_key)
+    if cached_token:
+        return cached_token
 
     refresh_token = account.get_refresh_token()
     creds = Credentials(
@@ -101,6 +107,8 @@ def _get_oauth2_access_token(account) -> str:
         scopes=['https://mail.google.com/'],
     )
     creds.refresh(GoogleRequest())
+    # Google トークンの有効期限は3600秒 → 55分でキャッシュ
+    cache.set(cache_key, creds.token, timeout=3300)
     return creds.token
 
 

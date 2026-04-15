@@ -272,6 +272,64 @@ tr.expanded .row-expand-inner{
   background:#fff;border:1px solid var(--border);border-radius:6px;
   box-shadow:var(--shadow);z-index:200;min-width:220px;overflow:hidden;
 }
+
+/* ===== ボトムナビ（デスクトップでは非表示） ===== */
+#bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;height:56px;
+  background:#fff;border-top:1px solid var(--border);z-index:65;
+  align-items:stretch;
+}
+.bn-btn{
+  flex:1;border:none;background:transparent;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:4px 2px;color:var(--text-sub);transition:color .12s;
+  font-size:.6rem;font-family:inherit;
+}
+.bn-btn:active{background:var(--hover)}
+.bn-btn.active{color:var(--blue)}
+.bn-btn svg{width:22px;height:22px;stroke:currentColor;fill:none}
+
+/* ===== モバイル対応 (max-width: 768px) ===== */
+@media (max-width:768px){
+  /* トップバー：1行目=ロゴ+タイトル、2行目=アカウント */
+  #topbar{flex-wrap:wrap;height:auto;padding:6px 8px;gap:4px}
+  .tb-logo{width:auto;border-right:none;height:auto;padding:0;flex-shrink:0}
+  .tb-logo img{height:28px}
+  .tb-title{flex:1;padding:0 6px;font-size:.85rem}
+  .tb-spacer{display:none}
+  .tb-right{
+    width:100%;border-top:1px solid var(--border);
+    padding:4px 0 0;justify-content:flex-start;
+  }
+  #account-toggle-btn{width:100%;padding:5px 2px}
+  .tb-account-email{display:block;max-width:none;font-size:.82rem}
+
+  /* サイドバー：ドロワー */
+  #sidebar{
+    position:fixed;top:0;left:calc(-1 * var(--sidebar-w));bottom:0;
+    z-index:100;transition:left .25s ease;height:100%;
+  }
+  #sidebar.open{left:0}
+  #sidebar-overlay{
+    display:none;position:fixed;inset:0;
+    background:rgba(0,0,0,.35);z-index:99;
+  }
+  #sidebar-overlay.active{display:block}
+
+  /* コンテンツ：全幅＋ボトムナビ分の余白 */
+  #content{padding:12px 10px calc(56px + 12px)}
+
+  /* テーブル：横スクロール可 */
+  .tbl-wrap{overflow-x:auto}
+
+  /* フィルターバー：スクロール可 */
+  #filter-bar{overflow-x:auto;flex-wrap:nowrap;gap:4px}
+  .filter-pill{white-space:nowrap;flex-shrink:0}
+
+  /* ボトムナビ表示 */
+  #bottom-nav{display:flex}
+}
 </style>
 </head>
 <body>
@@ -310,6 +368,9 @@ tr.expanded .row-expand-inner{
 
 <!-- ===== メインエリア ===== -->
 <div id="main">
+
+  <!-- サイドバーオーバーレイ（モバイル用） -->
+  <div id="sidebar-overlay"></div>
 
   <!-- ===== サイドバー ===== -->
   <div id="sidebar">
@@ -452,6 +513,35 @@ tr.expanded .row-expand-inner{
 
   </div><!-- /content -->
 </div><!-- /main -->
+
+<!-- ===== ボトムナビ（モバイル用） ===== -->
+<nav id="bottom-nav">
+  <button class="bn-btn" id="bn-compose">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <span>新規</span>
+  </button>
+  <button class="bn-btn active" id="bn-classify">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    <span>AI分類</span>
+  </button>
+  <button class="bn-btn" id="bn-folders">
+    <svg viewBox="0 0 24 24" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <span>フォルダ</span>
+  </button>
+  <button class="bn-btn" id="bn-friends">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>友達</span>
+  </button>
+  <button class="bn-btn" id="bn-home">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>受信トレイ</span>
+  </button>
+  <button class="bn-btn" id="bn-sync">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <span>再分類</span>
+  </button>
+</nav>
+
 </div><!-- /app -->
 
 <div id="toast"></div>
@@ -907,6 +997,40 @@ async function loadSchedule() {
   }
 }
 loadSchedule();
+
+// =============================================
+// モバイル対応
+// =============================================
+function isMobile() { return window.innerWidth <= 768; }
+
+function openSidebarMobile() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('active');
+}
+function closeSidebarMobile() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('active');
+}
+
+document.getElementById('sidebar-overlay').addEventListener('click', closeSidebarMobile);
+
+// ボトムナビ
+document.getElementById('bn-compose').addEventListener('click', () => {
+  window.location.href = '/mail/';
+});
+document.getElementById('bn-classify').addEventListener('click', () => {
+  document.getElementById('btn-classify').click();
+});
+document.getElementById('bn-folders').addEventListener('click', openSidebarMobile);
+document.getElementById('bn-friends').addEventListener('click', () => {
+  window.location.href = '/mail/friends/';
+});
+document.getElementById('bn-home').addEventListener('click', () => {
+  window.location.href = '/mail/';
+});
+document.getElementById('bn-sync').addEventListener('click', () => {
+  document.getElementById('btn-classify').click();
+});
 
 document.getElementById('btn-sch-save').addEventListener('click', async () => {
   const isEnabled = document.getElementById('sch-enabled').checked;
