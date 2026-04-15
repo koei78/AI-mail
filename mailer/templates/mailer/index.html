@@ -814,6 +814,130 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   border:2px solid transparent;transition:border-color .1s;flex-shrink:0;
 }
 .stg-mini-color.sel{border-color:#333}
+
+/* ===== ボトムナビ（デスクトップでは非表示） ===== */
+#bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;height:56px;
+  background:#fff;border-top:1px solid var(--border);z-index:65;
+  align-items:stretch;
+}
+
+/* ===== AI FAB ボタン（モバイルのみ） ===== */
+#ai-fab{
+  display:none;
+  position:fixed;bottom:72px;right:16px;
+  width:52px;height:52px;border-radius:50%;
+  background:#8764b8;color:#fff;border:none;cursor:pointer;
+  box-shadow:0 4px 12px rgba(135,100,184,.45);
+  align-items:center;justify-content:center;
+  z-index:66;transition:transform .12s,box-shadow .12s;
+}
+#ai-fab:active{transform:scale(.92);box-shadow:0 2px 6px rgba(135,100,184,.4)}
+#ai-fab svg{width:24px;height:24px;stroke:#fff;fill:none}
+.bn-btn{
+  flex:1;border:none;background:transparent;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:4px 2px;color:var(--text-sub);transition:color .12s;
+  font-size:.6rem;font-family:inherit;
+}
+.bn-btn:active{background:var(--hover)}
+.bn-btn.active{color:var(--blue)}
+.bn-btn svg{width:22px;height:22px;stroke:currentColor;fill:none}
+
+/* AI パネル閉じるボタン（デスクトップでは非表示） */
+#ai-panel-close{
+  display:none;align-items:center;justify-content:center;
+  border:none;background:transparent;cursor:pointer;
+  padding:4px;color:var(--text-sub);border-radius:var(--radius);
+  margin-left:auto;
+}
+#ai-panel-close:hover{background:var(--hover)}
+#ai-panel-close svg{width:18px;height:18px;stroke:currentColor;fill:none}
+
+/* ===== モバイル対応 (max-width: 768px) ===== */
+@media (max-width:768px){
+  /* トップバー：1行目=ロゴ+検索、2行目=アカウント切替 */
+  #topbar{
+    flex-wrap:wrap;height:auto;padding:6px 8px;gap:4px;
+  }
+  .tb-logo{
+    width:auto;border-right:none;height:auto;padding:0;flex-shrink:0;
+  }
+  .tb-logo img{height:28px}
+  .tb-search{flex:1;margin:0;min-width:0}
+  .tb-spacer{display:none}
+  .tb-right{
+    width:100%;border-top:1px solid var(--border);
+    padding:4px 0 0;justify-content:flex-start;
+  }
+  /* インラインstyleを上書きするため !important が必要 */
+  #topbar .tb-right > button:not(#account-toggle-btn){display:none !important}
+  #account-toggle-btn{width:100%;padding:5px 2px}
+  .tb-account-email{display:block;max-width:none;font-size:.82rem}
+
+  /* メール行のはみ出し防止 */
+  .mail-row{overflow:hidden}
+  .mr-top{overflow:hidden;min-width:0}
+  .mr-subject-wrap{overflow:hidden;min-width:0}
+
+  /* メインエリア */
+  #main{flex-direction:column}
+
+  /* サイドバー：ドロワー */
+  #sidebar{
+    position:fixed;top:0;left:calc(-1 * var(--sidebar-w));bottom:0;
+    z-index:100;transition:left .25s ease;height:100%;
+  }
+  #sidebar.open{left:0}
+
+  /* サイドバーオーバーレイ */
+  #sidebar-overlay{
+    display:none;position:fixed;inset:0;
+    background:rgba(0,0,0,.35);z-index:99;
+  }
+  #sidebar-overlay.active{display:block}
+
+  /* メール一覧：全幅 */
+  #list-pane{width:100%;flex:1;padding-bottom:56px}
+
+  /* 本文ペイン：全画面スライドイン */
+  #body-pane{
+    position:fixed;inset:0;
+    transform:translateX(100%);transition:transform .25s ease;
+    z-index:60;display:flex !important;padding-bottom:56px;
+  }
+  #body-pane.mobile-open{transform:translateX(0)}
+
+  /* AI チャットパネル：モーダル */
+  #ai-panel{
+    position:fixed;inset:0;
+    transform:translateY(100%);transition:transform .25s ease;
+    z-index:200;width:100%;display:flex !important;
+    border-right:none;border-top:1px solid var(--border);
+    padding-bottom:56px;
+  }
+  #ai-panel.mobile-open{transform:translateY(0)}
+
+  /* AI パネル閉じるボタン（モバイルのみ表示） */
+  #ai-panel-close{display:flex}
+
+  /* ボトムナビ */
+  #bottom-nav{display:flex}
+
+  /* AI FAB ボタン */
+  #ai-fab{display:flex}
+
+  /* 分類ペイン */
+  #classify-pane{padding-bottom:56px}
+
+  /* 新規作成ペイン */
+  #compose-pane{padding-bottom:56px}
+
+  /* ツールバーのテキストラベルを非表示（アイコンのみ） */
+  .dt-btn span{display:none}
+  .dt-btn svg{margin:0}
+}
 </style>
 </head>
 <body>
@@ -862,6 +986,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
 
 <!-- ===== メインエリア ===== -->
 <div id="main">
+
+  <!-- サイドバーオーバーレイ（モバイル用） -->
+  <div id="sidebar-overlay"></div>
 
   <!-- ===== サイドバー ===== -->
   <div id="sidebar">
@@ -974,6 +1101,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
       <div class="ai-hdr">
         <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
         <div class="ai-hdr-title">AIアシスタント</div>
+        <button id="ai-panel-close" title="閉じる">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div id="ai-messages">
         <div class="ai-msg ai">このメールについて何でも質問してください。<br>「返信文を書いて」と入力すると、情報が足りない場合は質問しながら一緒に返信を作ります。</div>
@@ -1091,6 +1221,11 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
         </div>
       </div>
 
+      <!-- AI FAB（モバイル用 右下の AI 返信提案ボタン） -->
+      <button id="ai-fab" title="AI返信提案">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="9.01" y2="10" stroke-width="2.5"/><line x1="12" y1="10" x2="12.01" y2="10" stroke-width="2.5"/><line x1="15" y1="10" x2="15.01" y2="10" stroke-width="2.5"/></svg>
+      </button>
+
       <!-- 転送フォーム -->
       <div class="reply-wrap" id="forward-wrap">
         <div class="rw-header">
@@ -1157,6 +1292,35 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   </div>
 
 </div><!-- /main -->
+
+<!-- ===== ボトムナビ（モバイル用） ===== -->
+<nav id="bottom-nav">
+  <button class="bn-btn" id="bn-compose">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <span>新規</span>
+  </button>
+  <button class="bn-btn" id="bn-classify">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    <span>AI分類</span>
+  </button>
+  <button class="bn-btn" id="bn-folders">
+    <svg viewBox="0 0 24 24" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <span>フォルダ</span>
+  </button>
+  <button class="bn-btn" id="bn-friends">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>友達</span>
+  </button>
+  <button class="bn-btn" id="bn-settings">
+    <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>設定</span>
+  </button>
+  <button class="bn-btn" id="bn-sync">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <span>同期</span>
+  </button>
+</nav>
+
 </div><!-- /app -->
 
 <!-- compose-pane は #main 内に移動済み -->
@@ -1484,6 +1648,7 @@ function renderFolders() {
     el.addEventListener('click', () => {
       const f = S.folders.find(x => x.id === parseInt(el.dataset.fid));
       if (f) selectFolder(f);
+      closeSidebarMobile();
     });
   });
 }
@@ -1690,15 +1855,25 @@ async function openMail(id) {
 function showEmpty() {
   $('empty-state').style.display='flex'; $('mail-detail').style.display='none';
   $('ai-panel').style.display='none';
-  $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+  if(!isMobile()){
+    $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+  } else {
+    $('body-pane').classList.remove('mobile-open');
+    $('ai-panel').classList.remove('mobile-open');
+  }
   S.curEmail = null; S.curEmailId = null;
   aiClearChat();
   updateFriendBtn();
 }
 function showDetail() {
   $('empty-state').style.display='none'; $('mail-detail').style.display='flex';
-  $('ai-panel').style.display='flex';
-  $('list-pane').style.display='none'; $('body-pane').style.display='flex';
+  if(!isMobile()){
+    $('ai-panel').style.display='flex';
+    $('list-pane').style.display='none'; $('body-pane').style.display='flex';
+  } else {
+    $('ai-panel').style.display='none'; // モバイルはボタンで開く
+    $('body-pane').classList.add('mobile-open');
+  }
 }
 
 // =============================================
@@ -1785,7 +1960,13 @@ $('btn-back').addEventListener('click', () => {
   S.curEmailId = null;
   document.querySelectorAll('.mail-row').forEach(r => r.classList.remove('active'));
   hideReply(); hideForward();
-  $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+  if(isMobile()){
+    $('body-pane').classList.remove('mobile-open');
+    $('ai-panel').classList.remove('mobile-open');
+    $('ai-panel').style.display='none';
+  } else {
+    $('list-pane').style.display='flex'; $('body-pane').style.display='none';
+  }
 });
 
 $('btn-reply').addEventListener('click', () => {
@@ -1794,6 +1975,7 @@ $('btn-reply').addEventListener('click', () => {
   $('reply-to-addr').textContent = '返信先: ' + S.curEmail.from_address;
   $('reply-body').value = '';
   $('reply-wrap').style.display = 'block';
+  if(isMobile()) $('ai-fab').style.display = 'none';
   $('reply-body').focus();
 });
 $('btn-reply-cancel').addEventListener('click', hideReply);
@@ -1810,7 +1992,10 @@ $('btn-reply-send').addEventListener('click', async () => {
   if (d.ok) { toast('返信しました', 'success'); hideReply(); $('reply-files').value=''; $('reply-file-names').textContent=''; }
   else toast('送信失敗: '+d.error, 'error');
 });
-function hideReply() { $('reply-wrap').style.display='none'; $('reply-body').value=''; }
+function hideReply() {
+  $('reply-wrap').style.display='none'; $('reply-body').value='';
+  if(isMobile()) $('ai-fab').style.display = '';
+}
 
 // =============================================
 // 転送
@@ -1820,6 +2005,7 @@ $('btn-forward').addEventListener('click', () => {
   hideReply();
   $('forward-to').value = ''; $('forward-body').value = '';
   $('forward-wrap').style.display = 'block';
+  if(isMobile()) $('ai-fab').style.display = 'none';
   $('forward-to').focus();
 });
 $('btn-forward-cancel').addEventListener('click', hideForward);
@@ -1837,7 +2023,10 @@ $('btn-forward-send').addEventListener('click', async () => {
   if (d.ok) { toast('転送しました', 'success'); hideForward(); $('forward-files').value=''; $('forward-file-names').textContent=''; }
   else toast('転送失敗: '+d.error, 'error');
 });
-function hideForward() { $('forward-wrap').style.display='none'; }
+function hideForward() {
+  $('forward-wrap').style.display='none';
+  if(isMobile()) $('ai-fab').style.display = '';
+}
 
 // =============================================
 // 新規作成ペイン
@@ -2262,6 +2451,7 @@ $('asp-use-btn').addEventListener('click', () => {
   $('reply-to-addr').textContent = S.curEmail ? '返信先: ' + S.curEmail.from_address : '';
   $('reply-body').value = text;
   $('reply-wrap').style.display = 'block';
+  if(isMobile()) $('ai-fab').style.display = 'none';
   $('reply-body').focus();
   aspClose();
   toast('返信エリアに挿入しました', 'success');
@@ -2274,6 +2464,7 @@ $('asp-overlay').addEventListener('click', e => { if (e.target === $('asp-overla
 // ツールバーの「AI返信提案」ボタン → チャットパネルに返信提案を依頼
 $('btn-ai-suggest').addEventListener('click', () => {
   if (!S.curEmailId) return;
+  if(isMobile()) openAiPanelMobile();
   const input = $('ai-input');
   input.value = 'このメールへの返信文を提案してください。';
   input.focus();
@@ -2315,6 +2506,7 @@ function aiAppendMsg(role, text, isError = false, msgType = 'reply') {
       $('reply-to-addr').textContent = S.curEmail ? '返信先: ' + S.curEmail.from_address : '';
       $('reply-body').value = extractBetweenDashes(text);
       $('reply-wrap').style.display = 'block';
+      if(isMobile()) { closeAiPanelMobile(); $('ai-fab').style.display = 'none'; }
       $('reply-body').focus();
       toast('返信エリアに挿入しました', 'info');
     });
@@ -2739,6 +2931,68 @@ $('clp-classify-btn').addEventListener('click', async () => {
   toast(d.message, 'success');
   const listD = await api('/mail/api/classify/' + (accountId ? '?account_id=' + accountId : ''));
   if (listD.ok) renderClpRows(listD.classifications);
+});
+
+// =============================================
+// モバイル対応ユーティリティ
+// =============================================
+function isMobile() { return window.innerWidth <= 768; }
+
+function openSidebarMobile() {
+  $('sidebar').classList.add('open');
+  $('sidebar-overlay').classList.add('active');
+}
+function closeSidebarMobile() {
+  $('sidebar').classList.remove('open');
+  $('sidebar-overlay').classList.remove('active');
+}
+function openAiPanelMobile() {
+  const panel = $('ai-panel');
+  panel.style.display = 'flex';
+  panel.classList.add('mobile-open');
+}
+function closeAiPanelMobile() {
+  const panel = $('ai-panel');
+  panel.classList.remove('mobile-open');
+  panel.style.display = 'none';
+}
+
+// サイドバーオーバーレイクリックで閉じる
+$('sidebar-overlay').addEventListener('click', closeSidebarMobile);
+
+// AI パネルの閉じるボタン（モバイル）
+$('ai-panel-close').addEventListener('click', closeAiPanelMobile);
+
+// AI FAB ボタン（モバイル右下の返信提案ボタン）
+$('ai-fab').addEventListener('click', () => {
+  openAiPanelMobile();
+  const input = $('ai-input');
+  if(!input.value) input.value = 'このメールへの返信文を提案してください。';
+  input.focus();
+});
+
+// =============================================
+// ボトムナビ
+// =============================================
+$('bn-compose').addEventListener('click', () => {
+  closeSidebarMobile();
+  openCompose();
+});
+$('bn-classify').addEventListener('click', () => {
+  closeSidebarMobile();
+  showClassifyPane();
+});
+$('bn-folders').addEventListener('click', openSidebarMobile);
+$('bn-friends').addEventListener('click', () => {
+  window.location.href = '/mail/friends/';
+});
+$('bn-settings').addEventListener('click', () => {
+  closeSidebarMobile();
+  $('btn-settings').click();
+});
+$('bn-sync').addEventListener('click', () => {
+  closeSidebarMobile();
+  $('btn-sync-top').click();
 });
 </script>
 

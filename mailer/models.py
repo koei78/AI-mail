@@ -255,6 +255,45 @@ class Friend(models.Model):
         return f'{self.display_name or self.email_address} ({self.account.email_address})'
 
 
+class EmailCache(models.Model):
+    """メールヘッダーのDBキャッシュ（一覧表示の高速化用）"""
+
+    account = models.ForeignKey(
+        MailAccount,
+        on_delete=models.CASCADE,
+        related_name='email_caches',
+        verbose_name='メールアカウント',
+    )
+    folder = models.ForeignKey(
+        MailFolder,
+        on_delete=models.CASCADE,
+        related_name='email_caches',
+        verbose_name='フォルダ',
+    )
+    uid = models.IntegerField(verbose_name='IMAP UID')
+    message_id = models.CharField(max_length=512, blank=True, db_index=True, verbose_name='Message-ID')
+    subject = models.CharField(max_length=500, blank=True, verbose_name='件名')
+    from_address = models.CharField(max_length=255, blank=True, verbose_name='送信者')
+    to_addresses = models.JSONField(default=list, verbose_name='宛先')
+    received_at = models.DateTimeField(null=True, blank=True, verbose_name='受信日時')
+    is_read = models.BooleanField(default=False, verbose_name='既読')
+    is_starred = models.BooleanField(default=False, verbose_name='スター')
+    has_attachments = models.BooleanField(default=False, verbose_name='添付あり')
+    size = models.IntegerField(default=0, verbose_name='サイズ')
+    cached_at = models.DateTimeField(auto_now=True, verbose_name='キャッシュ日時')
+
+    class Meta:
+        verbose_name = 'メールキャッシュ'
+        verbose_name_plural = 'メールキャッシュ'
+        unique_together = [['folder', 'uid']]
+        indexes = [
+            models.Index(fields=['folder', '-received_at']),
+        ]
+
+    def __str__(self):
+        return f'[{self.folder}] UID={self.uid} {self.subject[:40]}'
+
+
 class ClassifySchedule(models.Model):
     """AI仕分け自動実行スケジュール（ユーザーごとに1レコード）"""
 

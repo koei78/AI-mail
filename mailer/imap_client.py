@@ -86,10 +86,16 @@ def _parse_addresses(header_value: str) -> list[str]:
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
 def _get_oauth2_access_token(account) -> str:
-    """OAuth2アカウントのアクセストークンを取得（必要に応じてリフレッシュ）"""
+    """OAuth2アカウントのアクセストークンを取得（キャッシュ優先、必要に応じてリフレッシュ）"""
+    from django.core.cache import cache
     from django.conf import settings as _settings
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request as GoogleRequest
+
+    cache_key = f'gmail_token:{account.id}'
+    cached_token = cache.get(cache_key)
+    if cached_token:
+        return cached_token
 
     refresh_token = account.get_refresh_token()
     creds = Credentials(
@@ -101,6 +107,8 @@ def _get_oauth2_access_token(account) -> str:
         scopes=['https://mail.google.com/'],
     )
     creds.refresh(GoogleRequest())
+    # Google トークンの有効期限は3600秒 → 55分でキャッシュ
+    cache.set(cache_key, creds.token, timeout=3300)
     return creds.token
 
 
@@ -191,12 +199,27 @@ _FOLDER_TYPE_MAP = {
     'Junk': 'spam',
     'Junk Email': 'spam',
     'スパム': 'spam',
+    # Gmail 固有フォルダ名
+    '[Gmail]/Sent Mail': 'sent',
+    '[Gmail]/送信済みメール': 'sent',
+    '[Gmail]/Drafts': 'draft',
+    '[Gmail]/下書き': 'draft',
+    '[Gmail]/Trash': 'trash',
+    '[Gmail]/ゴミ箱': 'trash',
+    '[Gmail]/Spam': 'spam',
+    '[Gmail]/迷惑メール': 'spam',
+    '[Gmail]/All Mail': 'custom',
+    '[Gmail]/すべてのメール': 'custom',
+    '[Gmail]/Important': 'custom',
+    '[Gmail]/重要': 'custom',
+    '[Gmail]/Starred': 'custom',
+    '[Gmail]/スター付き': 'custom',
 }
 
 
 def _guess_folder_type(remote_name: str) -> str:
-    # まず完全一致・末尾一致で判定（INBOX.Sent の末尾が "Sent" など）
     lower = remote_name.lower()
+    # 完全一致
     for key, ftype in _FOLDER_TYPE_MAP.items():
         if lower == key.lower():
             return ftype
@@ -204,6 +227,15 @@ def _guess_folder_type(remote_name: str) -> str:
     for key, ftype in _FOLDER_TYPE_MAP.items():
         if lower.endswith('.' + key.lower()):
             return ftype
+    # Gmail: キーワードで部分一致（ロケール違いに対応）
+    if 'sent' in lower or '送信' in lower:
+        return 'sent'
+    if 'draft' in lower or '下書き' in lower:
+        return 'draft'
+    if 'trash' in lower or 'deleted' in lower or 'ゴミ箱' in lower:
+        return 'trash'
+    if 'spam' in lower or 'junk' in lower or '迷惑' in lower:
+        return 'spam'
     return 'custom'
 
 
@@ -328,10 +360,20 @@ class MailClient:
         except Exception as e:
             raise ImapConnectionError(f'フォルダ一覧取得エラー: {e}') from e
 
+        # Gmail の仮想フォルダ（All Mail 等）は除外する
+        _GMAIL_SKIP = {
+            '[gmail]/all mail', '[gmail]/すべてのメール',
+            '[gmail]/important', '[gmail]/重要',
+            '[gmail]/starred', '[gmail]/スター付き',
+            '[gmail]/chats', '[gmail]/チャット',
+        }
+
         folders = []
         for flags, delimiter, remote_name in raw_folders:
             if isinstance(remote_name, bytes):
                 remote_name = remote_name.decode('utf-7', errors='replace')
+            if remote_name.lower() in _GMAIL_SKIP:
+                continue
             folder_type = _guess_folder_type(remote_name)
             # 日本語名のマッピング
             display_name = {
@@ -409,6 +451,7 @@ class MailClient:
 
             is_read = b'\\Seen' in flags
             is_starred = b'\\Flagged' in flags
+            size = data.get(b'RFC822.SIZE', 0) or 0
 
             # 件名デコード
             subject = _decode_str(envelope.subject) if envelope.subject else '（件名なし）'
@@ -449,6 +492,8 @@ class MailClient:
                 'is_read': is_read,
                 'is_starred': is_starred,
                 'received_at': received_at,
+                'has_attachments': False,  # ヘッダーのみ取得のため不明（本文取得時に確定）
+                'size': size,
             })
 
         return emails

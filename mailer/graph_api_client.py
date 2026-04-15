@@ -72,8 +72,14 @@ def _get_uid_cache(account_id: int, uid: int) -> str | None:
 # =============================
 
 def _get_graph_access_token(account) -> str:
-    """リフレッシュトークンを使って Graph API アクセストークンを取得する"""
+    """リフレッシュトークンを使って Graph API アクセストークンを取得する（キャッシュ優先）"""
+    from django.core.cache import cache
     from django.conf import settings as _settings
+
+    cache_key = f'graph_token:{account.id}'
+    cached_token = cache.get(cache_key)
+    if cached_token:
+        return cached_token
 
     refresh_token = account.get_refresh_token()
     if not refresh_token:
@@ -101,6 +107,9 @@ def _get_graph_access_token(account) -> str:
         account.set_refresh_token(data['refresh_token'])
         account.save(update_fields=['oauth2_refresh_token_encrypted'])
 
+    # アクセストークンをキャッシュ（expires_in - 5分 の余裕を持たせる）
+    expires_in = int(data.get('expires_in', 3600))
+    cache.set(cache_key, data['access_token'], timeout=max(60, expires_in - 300))
     return data['access_token']
 
 
@@ -126,12 +135,20 @@ class GraphMailClient:
             'Content-Type': 'application/json',
         }
 
-    def _get(self, url: str, params: dict = None) -> dict:
-        resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
+    def _get(self, url: str, params: dict = None, extra_headers: dict = None) -> dict:
+        def _do():
+            h = self._headers()
+            if extra_headers:
+                h.update(extra_headers)
+            return requests.get(url, headers=h, params=params, timeout=30)
+
+        resp = _do()
         if resp.status_code == 401:
-            # トークン期限切れ → 再取得して1回リトライ
+            # トークン期限切れ → キャッシュ無効化して再取得し1回リトライ
+            from django.core.cache import cache
+            cache.delete(f'graph_token:{self.account.id}')
             self._token = _get_graph_access_token(self.account)
-            resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
+            resp = _do()
         if not resp.ok:
             raise GraphConnectionError(f'GET {url} 失敗 ({resp.status_code}): {resp.text[:200]}')
         return resp.json()
@@ -375,12 +392,50 @@ class GraphMailClient:
                     'to_addresses': to_addrs,
                     'is_read': msg.get('isRead', False),
                     'is_starred': (msg.get('flag') or {}).get('flagStatus') == 'flagged',
+                    'has_attachments': msg.get('hasAttachments', False),
                     'received_at': msg.get('receivedDateTime'),
                 })
             except Exception as e:
                 logger.warning('Graph メール変換失敗: %s', e)
                 continue
         return emails
+
+    def fetch_emails_by_page(self, folder_remote_name: str, page: int, per_page: int) -> tuple[list[dict], int]:
+        """
+        指定ページのメール一覧を直接取得する。
+        従来の get_folder_uids → fetch_emails_by_uids (N+1) を廃し、
+        1〜2コールのみでページ分のメールを返す。
+        戻り値: (emails, total_count)
+        """
+        skip = (page - 1) * per_page
+        try:
+            data = self._get(
+                f'{BASE_URL}/mailFolders/{folder_remote_name}/messages',
+                params={
+                    '$select': 'id,subject,from,toRecipients,isRead,flag,'
+                               'receivedDateTime,internetMessageId,hasAttachments',
+                    '$top': per_page,
+                    '$skip': skip,
+                    '$orderby': 'receivedDateTime desc',
+                    '$count': 'true',
+                },
+                extra_headers={'ConsistencyLevel': 'eventual'},
+            )
+        except GraphConnectionError as e:
+            raise GraphConnectionError(f'メール一覧取得エラー: {e}') from e
+
+        emails = self._emails_from_graph_messages(data.get('value', []))
+
+        total = data.get('@odata.count', 0)
+        if not total:
+            # $count が返らない場合はフォルダ情報から取得
+            try:
+                folder_data = self._get(f'{BASE_URL}/mailFolders/{folder_remote_name}')
+                total = folder_data.get('totalItemCount', len(emails))
+            except GraphConnectionError:
+                total = len(emails)
+
+        return emails, total
 
     # --------------------------------------------------
     # メール本文取得
