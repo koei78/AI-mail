@@ -410,13 +410,7 @@ def invalidate_emails_cache(folder_id):
 
 @login_required
 def api_emails(request):
-<<<<<<< HEAD
     """GET: メール一覧（?folder_id=, ?page=）— DBキャッシュ優先"""
-=======
-    """GET: メール一覧（?folder_id=, ?page=, ?refresh=1）"""
-    from django.core.cache import cache
-
->>>>>>> ade5070ff2f615f3bf455566b39b8d47946b22a9
     folder_id = request.GET.get('folder_id')
     if not folder_id:
         return _json_error('folder_id パラメータが必要です')
@@ -429,7 +423,6 @@ def api_emails(request):
     if isinstance(folder, JsonResponse):
         return folder
 
-<<<<<<< HEAD
     cache_count = EmailCache.objects.filter(folder=folder).count()
 
     if cache_count == 0:
@@ -504,34 +497,6 @@ def _api_emails_imap(folder: MailFolder, page: int, per_page: int) -> JsonRespon
         if 'unauthorized_client' in err or 'invalid_grant' in err or 'Token has been expired' in err:
             return _json_error('Gmailの認証が切れています。アカウント設定から再連携してください。', 401)
         return _json_error(err)
-=======
-    # キャッシュヒット（強制リフレッシュでなければ）
-    cache_key = _emails_cache_key(folder.id, page)
-    if not force_refresh:
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return JsonResponse(cached)
-
-    try:
-        client = _get_mail_client(folder.account)
-        if hasattr(client, 'fetch_emails_by_page'):
-            # Graph API クライアント（Outlook）: 1〜2コールで完結
-            emails_data, total = client.fetch_emails_by_page(folder.remote_name, page, per_page)
-            page_uids = [e['uid'] for e in emails_data]
-        else:
-            # IMAP クライアント（通常/Gmail）: UID一覧→バッチENVELOPE取得
-            client.connect_imap()
-            all_uids = sorted(client.get_folder_uids(folder.remote_name), reverse=True)
-            total = len(all_uids)
-            offset = (page - 1) * per_page
-            page_uids = all_uids[offset:offset + per_page]
-            emails_data = client.fetch_emails_by_uids(folder.remote_name, page_uids)
-            client.disconnect_imap()
-    except ImapConnectionError as e:
-        return _json_error(str(e))
-    except Exception as e:
-        return _json_error(str(e))
->>>>>>> ade5070ff2f615f3bf455566b39b8d47946b22a9
 
     message_ids = [e.get('message_id') for e in emails_data if e.get('message_id')]
     labels_by_msgid: dict[str, list] = {}
@@ -615,11 +580,7 @@ def api_email_detail(request, uid):
             if is_trash:
                 client.delete_email(uid, folder.remote_name)
                 client.disconnect_imap()
-<<<<<<< HEAD
                 EmailCache.objects.filter(folder=folder, uid=uid).delete()
-=======
-                invalidate_emails_cache(folder.id)
->>>>>>> ade5070ff2f615f3bf455566b39b8d47946b22a9
                 return _json_ok({'action': 'deleted'})
             else:
                 trash_folder = MailFolder.objects.filter(
@@ -628,22 +589,12 @@ def api_email_detail(request, uid):
                 if trash_folder:
                     client.move_email(uid, folder.remote_name, trash_folder.remote_name)
                     client.disconnect_imap()
-<<<<<<< HEAD
                     EmailCache.objects.filter(folder=folder, uid=uid).delete()
-=======
-                    invalidate_emails_cache(folder.id)
-                    if trash_folder:
-                        invalidate_emails_cache(trash_folder.id)
->>>>>>> ade5070ff2f615f3bf455566b39b8d47946b22a9
                     return _json_ok({'action': 'trashed'})
                 else:
                     client.delete_email(uid, folder.remote_name)
                     client.disconnect_imap()
-<<<<<<< HEAD
                     EmailCache.objects.filter(folder=folder, uid=uid).delete()
-=======
-                    invalidate_emails_cache(folder.id)
->>>>>>> ade5070ff2f615f3bf455566b39b8d47946b22a9
                     return _json_ok({'action': 'deleted'})
         except ImapConnectionError as e:
             return _json_error(str(e))
@@ -998,17 +949,12 @@ def api_send(request):
             attachments=attachments or None,
             save_to_sent=save_to_sent,
         )
-<<<<<<< HEAD
         # 送信済みフォルダのキャッシュをバックグラウンドで更新
         if sent_folder:
             def _sync_sent():
-                import time; time.sleep(2)  # サーバーに反映されるまで少し待つ
+                import time; time.sleep(2)
                 sync_emails_cache(sent_folder)
             Thread(target=_sync_sent, daemon=True).start()
-=======
-        if sent_folder:
-            invalidate_emails_cache(sent_folder.id)
->>>>>>> ade5070ff2f615f3bf455566b39b8d47946b22a9
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
