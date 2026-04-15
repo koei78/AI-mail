@@ -14,8 +14,8 @@ from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from .imap_client import ImapConnectionError, MailClient, SmtpConnectionError, test_connection
-from .models import EmailClassification, EmailLabel, Label, MailAccount, MailFolder
-from .sync import sync_account
+from .models import EmailCache, EmailClassification, EmailLabel, Label, MailAccount, MailFolder
+from .sync import sync_account, sync_emails_cache
 
 
 def _get_mail_client(account):
@@ -399,7 +399,7 @@ def api_folder_empty(request, folder_id):
 
 @login_required
 def api_emails(request):
-    """GET: メール一覧（?folder_id=, ?page=）"""
+    """GET: メール一覧（?folder_id=, ?page=）— DBキャッシュ優先"""
     folder_id = request.GET.get('folder_id')
     if not folder_id:
         return _json_error('folder_id パラメータが必要です')
@@ -411,20 +411,81 @@ def api_emails(request):
     if isinstance(folder, JsonResponse):
         return folder
 
+    cache_count = EmailCache.objects.filter(folder=folder).count()
+
+    if cache_count == 0:
+        # 初回: 同期してからDBで返す
+        result = sync_emails_cache(folder)
+        if result.get('errors'):
+            # 同期失敗 → IMAP直接取得にフォールバック
+            logger.warning('初回キャッシュ同期失敗、IMAP直接取得にフォールバック folder=%s: %s', folder.id, result['errors'])
+            return _api_emails_imap(folder, page, per_page)
+    else:
+        # 2回目以降: バックグラウンドで差分更新
+        Thread(target=sync_emails_cache, args=(folder,), daemon=True).start()
+
+    # DBから取得して返す
+    total = EmailCache.objects.filter(folder=folder).count()
+    offset = (page - 1) * per_page
+    emails_qs = list(
+        EmailCache.objects.filter(folder=folder)
+        .order_by('-received_at')[offset:offset + per_page]
+    )
+
+    page_uids = [e.uid for e in emails_qs]
+    message_ids = [e.message_id for e in emails_qs if e.message_id]
+
+    labels_by_msgid: dict[str, list] = {}
+    if message_ids:
+        for el in EmailLabel.objects.filter(
+            account=folder.account, message_id__in=message_ids
+        ).select_related('label'):
+            labels_by_msgid.setdefault(el.message_id, []).append(_serialize_label(el.label))
+
+    classification_by_uid: dict[int, dict] = {}
+    for cls in EmailClassification.objects.filter(
+        account=folder.account, folder=folder, uid__in=page_uids
+    ).values('uid', 'category', 'summary'):
+        classification_by_uid[cls['uid']] = {'category': cls['category'], 'summary': cls['summary']}
+
+    data = [
+        {
+            'uid': e.uid,
+            'folder_id': folder.id,
+            'message_id': e.message_id,
+            'subject': e.subject,
+            'from_address': e.from_address,
+            'to_addresses': e.to_addresses,
+            'is_read': e.is_read,
+            'is_starred': e.is_starred,
+            'has_attachments': e.has_attachments,
+            'received_at': e.received_at.isoformat() if e.received_at else None,
+            'preview': '',
+            'labels': labels_by_msgid.get(e.message_id, []),
+            **classification_by_uid.get(e.uid, {'category': None, 'summary': None}),
+        }
+        for e in emails_qs
+    ]
+    return _json_ok({'emails': data, 'total': total, 'page': page, 'per_page': per_page})
+
+
+def _api_emails_imap(folder: MailFolder, page: int, per_page: int) -> JsonResponse:
+    """キャッシュ同期失敗時のIMAP直接取得フォールバック"""
     try:
         client = _get_mail_client(folder.account)
         client.connect_imap()
         all_uids = sorted(client.get_folder_uids(folder.remote_name), reverse=True)
         total = len(all_uids)
-
         offset = (page - 1) * per_page
         page_uids = all_uids[offset:offset + per_page]
         emails_data = client.fetch_emails_by_uids(folder.remote_name, page_uids)
         client.disconnect_imap()
     except ImapConnectionError as e:
-        return _json_error(str(e))
+        err = str(e)
+        if 'unauthorized_client' in err or 'invalid_grant' in err or 'Token has been expired' in err:
+            return _json_error('Gmailの認証が切れています。アカウント設定から再連携してください。', 401)
+        return _json_error(err)
 
-    # ラベル情報を付加
     message_ids = [e.get('message_id') for e in emails_data if e.get('message_id')]
     labels_by_msgid: dict[str, list] = {}
     if message_ids:
@@ -433,7 +494,6 @@ def api_emails(request):
         ).select_related('label'):
             labels_by_msgid.setdefault(el.message_id, []).append(_serialize_label(el.label))
 
-    # 分類情報を付加
     classification_by_uid: dict[int, dict] = {}
     for cls in EmailClassification.objects.filter(
         account=folder.account, folder=folder, uid__in=page_uids
@@ -481,6 +541,8 @@ def api_email_detail(request, uid):
         if was_unread:
             folder.unread_count = max(0, folder.unread_count - 1)
             folder.save(update_fields=['unread_count'])
+            # キャッシュの既読フラグも更新
+            EmailCache.objects.filter(folder=folder, uid=uid).update(is_read=True)
 
         message_id = summary.get('message_id', '')
         labels = []
@@ -503,6 +565,7 @@ def api_email_detail(request, uid):
             if is_trash:
                 client.delete_email(uid, folder.remote_name)
                 client.disconnect_imap()
+                EmailCache.objects.filter(folder=folder, uid=uid).delete()
                 return _json_ok({'action': 'deleted'})
             else:
                 trash_folder = MailFolder.objects.filter(
@@ -511,10 +574,12 @@ def api_email_detail(request, uid):
                 if trash_folder:
                     client.move_email(uid, folder.remote_name, trash_folder.remote_name)
                     client.disconnect_imap()
+                    EmailCache.objects.filter(folder=folder, uid=uid).delete()
                     return _json_ok({'action': 'trashed'})
                 else:
                     client.delete_email(uid, folder.remote_name)
                     client.disconnect_imap()
+                    EmailCache.objects.filter(folder=folder, uid=uid).delete()
                     return _json_ok({'action': 'deleted'})
         except ImapConnectionError as e:
             return _json_error(str(e))
@@ -869,6 +934,12 @@ def api_send(request):
             attachments=attachments or None,
             save_to_sent=save_to_sent,
         )
+        # 送信済みフォルダのキャッシュをバックグラウンドで更新
+        if sent_folder:
+            def _sync_sent():
+                import time; time.sleep(2)  # サーバーに反映されるまで少し待つ
+                sync_emails_cache(sent_folder)
+            Thread(target=_sync_sent, daemon=True).start()
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
@@ -927,6 +998,11 @@ def api_reply(request, uid):
 
     try:
         client.reply_email(original_data=original_data, body=text_body, attachments=attachments or None, save_to_sent=save_to_sent)
+        if sent_folder:
+            def _sync_sent_reply():
+                import time; time.sleep(2)
+                sync_emails_cache(sent_folder)
+            Thread(target=_sync_sent_reply, daemon=True).start()
         return _json_ok()
     except SmtpConnectionError as e:
         return _json_error(str(e))
@@ -2004,48 +2080,35 @@ def api_friends(request):
 
 @login_required
 def api_friend_messages(request):
-    """友達とのメールスレッドを取得する（受信 + 送信済み）"""
+    """友達とのメールスレッドを取得する（EmailCacheから高速取得、本文は別途取得）"""
     from .models import Friend
-    from datetime import datetime
-    from email.utils import getaddresses, parseaddr
+    from email.utils import parseaddr
+    from datetime import datetime, timezone
 
     friend_email = request.GET.get('email', '').strip().lower()
     account_id = request.GET.get('account_id')
 
-    def _norm_addr(v: str) -> str:
-        raw = (v or '').strip().lower()
-        _, addr = parseaddr(raw)
-        return (addr or raw).strip().lower()
-
-    def _same_or_plus_alias(a: str, b: str) -> bool:
-        if not a or not b:
-            return False
-        if a == b:
-            return True
-        try:
-            a_local, a_domain = a.split('@', 1)
-            b_local, b_domain = b.split('@', 1)
-        except ValueError:
-            return False
-        if a_domain != b_domain:
-            return False
-        return a_local.split('+', 1)[0] == b_local.split('+', 1)[0]
-
-    target_email = _norm_addr(friend_email)
-
-    def _match_sender(from_value: str) -> bool:
-        pairs = getaddresses([from_value or ''])
-        for _, addr in pairs:
-            if _same_or_plus_alias(_norm_addr(addr), target_email):
-                return True
-        return _same_or_plus_alias(_norm_addr(from_value or ''), target_email)
-
-    def _match_recipients(to_values: list[str]) -> bool:
-        pairs = getaddresses(to_values or [])
-        return any(_same_or_plus_alias(_norm_addr(addr), target_email) for _, addr in pairs)
-
     if not friend_email:
         return _json_error('email パラメータが必要です')
+
+    def _norm(v: str) -> str:
+        _, addr = parseaddr((v or '').strip().lower())
+        return (addr or v).strip().lower()
+
+    def _email_matches(raw: str, target: str) -> bool:
+        """from_address/to_addresses の文字列がターゲットと一致するか"""
+        n = _norm(raw)
+        if not n or not target:
+            return False
+        if n == target:
+            return True
+        # +エイリアス対応（user+tag@example.com → user@example.com）
+        try:
+            nl, nd = n.split('@', 1)
+            tl, td = target.split('@', 1)
+            return nd == td and nl.split('+', 1)[0] == tl.split('+', 1)[0]
+        except ValueError:
+            return False
 
     try:
         accounts_qs = MailAccount.objects.filter(user=request.user, is_active=True)
@@ -2058,124 +2121,104 @@ def api_friend_messages(request):
         return _json_error(str(e))
 
     all_messages = []
-    warnings = []
 
     for account in accounts:
-        logger.info('友達メッセージ検索開始: account=%s friend=%s', account.email_address, friend_email)
+        # ===== 受信: from_address が友達 =====
+        inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
+        if inbox:
+            if not EmailCache.objects.filter(folder=inbox).exists():
+                sync_emails_cache(inbox)  # 初回は同期的に取得
+            else:
+                Thread(target=sync_emails_cache, args=(inbox,), daemon=True).start()
+            cache_qs = EmailCache.objects.filter(folder=inbox).order_by('-received_at', '-cached_at')[:500]
+            for ec in cache_qs:
+                if _email_matches(ec.from_address, friend_email):
+                    dt = ec.received_at or ec.cached_at
+                    all_messages.append({
+                        'uid': ec.uid,
+                        'folder_id': inbox.id,
+                        'folder_remote': inbox.remote_name,
+                        'account_email': account.email_address,
+                        'direction': 'received',
+                        'subject': ec.subject,
+                        'from_address': ec.from_address,
+                        'to_addresses': ec.to_addresses,
+                        'received_at': dt.isoformat() if dt else None,
+                        'is_read': ec.is_read,
+                        'body_text': None,
+                    })
+
+        # ===== 送信: to_addresses に友達が含まれる =====
+        sent_folder = (
+            MailFolder.objects.filter(account=account, folder_type='sent').first()
+            or MailFolder.objects.filter(account=account, remote_name__iregex=r'sent').first()
+        )
+        if sent_folder:
+            if not EmailCache.objects.filter(folder=sent_folder).exists():
+                sync_emails_cache(sent_folder)  # 初回は同期的に取得
+            else:
+                Thread(target=sync_emails_cache, args=(sent_folder,), daemon=True).start()
+            cache_qs = EmailCache.objects.filter(folder=sent_folder).order_by('-received_at', '-cached_at')[:300]
+            for ec in cache_qs:
+                if any(_email_matches(addr, friend_email) for addr in (ec.to_addresses or [])):
+                    # received_at が NULL の場合は cached_at をフォールバックに使う
+                    dt = ec.received_at or ec.cached_at
+                    all_messages.append({
+                        'uid': ec.uid,
+                        'folder_id': sent_folder.id,
+                        'folder_remote': sent_folder.remote_name,
+                        'account_email': account.email_address,
+                        'direction': 'sent',
+                        'subject': ec.subject,
+                        'from_address': ec.from_address,
+                        'to_addresses': ec.to_addresses,
+                        'received_at': dt.isoformat() if dt else None,
+                        'is_read': ec.is_read,
+                        'body_text': None,
+                    })
+
+    # 日時順（古い順）にソート — datetime オブジェクトで比較してタイムゾーン差を吸収
+    from datetime import datetime as _dt, timezone as _tz
+    _MAX_DT = _dt(9999, 12, 31, tzinfo=_tz.utc)
+    def _sort_key(m):
+        s = m.get('received_at')
+        if not s:
+            return _MAX_DT
         try:
-            client = _get_mail_client(account)
-            client.connect_imap()
-            try:
-                # ===== 受信メール（INBOX から FROM = 友達）=====
-                inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
-                if not inbox:
-                    inbox = MailFolder.objects.filter(account=account, remote_name__iexact='INBOX').first()
+            d = _dt.fromisoformat(s)
+            return d if d.tzinfo else d.replace(tzinfo=_tz.utc)
+        except Exception:
+            return _MAX_DT
+    all_messages.sort(key=_sort_key)
+    all_messages = all_messages[-80:]  # 最新80件に絞る
 
-                if inbox:
-                    logger.info('受信トレイ検索: folder=%s', inbox.remote_name)
-                    received = client.search_emails_by_sender(inbox.remote_name, friend_email, limit=40)
-                    if not received:
-                        try:
-                            uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)[:400]
-                            scanned = client.fetch_emails_by_uids(inbox.remote_name, uids)
-                            received = [m for m in scanned if _match_sender(m.get('from_address', ''))][:40]
-                            logger.info('受信フォールバック件数: %d', len(received))
-                        except Exception as e:
-                            warnings.append(f'{account.email_address}: 受信メールのフォールバック検索失敗: {e}')
-                    logger.info('受信メール件数: %d', len(received))
-                    for msg in received:
-                        msg['direction'] = 'received'
-                        msg['account_email'] = account.email_address
-                        msg['folder_id'] = inbox.id
-                        msg['folder_remote'] = inbox.remote_name
-                        try:
-                            body = client.fetch_email_body(msg['uid'], inbox.remote_name)
-                            msg['body_text'] = body.get('body_text', '')
-                        except Exception as be:
-                            logger.warning('受信本文取得失敗 uid=%s: %s', msg['uid'], be)
-                            msg['body_text'] = ''
-                    all_messages.extend(received)
-                else:
-                    # どんなフォルダがあるか全部ログに出す
-                    all_folders = list(MailFolder.objects.filter(account=account).values('remote_name', 'folder_type'))
-                    logger.warning('受信トレイが見つかりません。利用可能フォルダ: %s', all_folders)
-                    warnings.append(
-                        f'{account.email_address}: 受信トレイが見つかりません。'
-                        f'利用可能フォルダ: {[f["remote_name"] for f in all_folders]}'
-                    )
-
-                # ===== 送信メール（SENT から TO = 友達）=====
-                sent_folder = MailFolder.objects.filter(account=account, folder_type='sent').first()
-                if not sent_folder:
-                    sent_folder = MailFolder.objects.filter(
-                        account=account, remote_name__iregex=r'sent'
-                    ).first()
-
-                if sent_folder:
-                    logger.info('送信済み検索: folder=%s', sent_folder.remote_name)
-                    sent_msgs = client.search_emails_to_recipient(sent_folder.remote_name, friend_email, limit=40)
-                    if not sent_msgs:
-                        try:
-                            uids = sorted(client.get_folder_uids(sent_folder.remote_name), reverse=True)[:400]
-                            scanned = client.fetch_emails_by_uids(sent_folder.remote_name, uids)
-                            sent_msgs = [m for m in scanned if _match_recipients(m.get('to_addresses') or [])][:40]
-                            logger.info('送信フォールバック件数: %d', len(sent_msgs))
-                        except Exception as e:
-                            warnings.append(f'{account.email_address}: 送信メールのフォールバック検索失敗: {e}')
-                    logger.info('送信メール件数: %d', len(sent_msgs))
-                    for msg in sent_msgs:
-                        msg['direction'] = 'sent'
-                        msg['account_email'] = account.email_address
-                        msg['folder_id'] = sent_folder.id
-                        msg['folder_remote'] = sent_folder.remote_name
-                        try:
-                            body = client.fetch_email_body(msg['uid'], sent_folder.remote_name)
-                            msg['body_text'] = body.get('body_text', '')
-                        except Exception as be:
-                            logger.warning('送信本文取得失敗 uid=%s: %s', msg['uid'], be)
-                            msg['body_text'] = ''
-                    all_messages.extend(sent_msgs)
-                else:
-                    logger.warning('送信済みフォルダが見つかりません: account=%s', account.email_address)
-
-            finally:
-                client.disconnect_imap()
-        except ImapConnectionError as e:
-            logger.warning('友達メッセージ取得 IMAP エラー (%s): %s', account.email_address, e)
-            warnings.append(f'{account.email_address}: IMAP接続エラー: {e}')
-        except Exception as e:
-            logger.warning('友達メッセージ取得エラー (%s): %s', account.email_address, e)
-            warnings.append(f'{account.email_address}: エラー: {e}')
-
-    # 日時順（古い順）にソート
-    all_messages.sort(key=lambda m: m.get('received_at') or '')
-
-    # 友達の最終メール日時をキャッシュ更新（受信・送信どちらでも最新のものを使う）
+    # 友達の最終メール日時を更新
     if all_messages and accounts:
         try:
-            # received_at があるものを優先し、最新メッセージを選ぶ
             msgs_with_dt = [m for m in all_messages if m.get('received_at')]
             if msgs_with_dt:
                 last = max(msgs_with_dt, key=lambda m: m['received_at'])
-                last_at = datetime.fromisoformat(last['received_at'])
-                friend = Friend.objects.filter(account__in=accounts, email_address=friend_email).first()
-                if friend:
-                    friend.last_email_at = last_at
-                    friend.last_email_subject = (last.get('subject') or '')[:300]
-                    friend.save()
-                    logger.info('友達最終メール更新: subject=%s', friend.last_email_subject)
+                last_at_str = last['received_at']
+                last_at = datetime.fromisoformat(last_at_str)
+                if last_at.tzinfo is None:
+                    last_at = last_at.replace(tzinfo=timezone.utc)
+                friend_obj = Friend.objects.filter(account__in=accounts, email_address=friend_email).first()
+                if friend_obj:
+                    friend_obj.last_email_at = last_at
+                    friend_obj.last_email_subject = (last.get('subject') or '')[:300]
+                    friend_obj.save(update_fields=['last_email_at', 'last_email_subject'])
         except Exception as e:
             logger.warning('友達最終メール更新エラー: %s', e)
 
-    return _json_ok(messages=all_messages, total=len(all_messages), warnings=warnings)
+    return _json_ok(messages=all_messages, total=len(all_messages), warnings=[])
 
 
 @login_required
 def api_friends_sync(request):
-    """全友達の最新メールをIMAPで一括スキャンし last_email_subject / last_email_at を更新する"""
+    """全友達の最新メールをEmailCacheから一括スキャンし last_email_subject / last_email_at を更新する"""
     from .models import Friend
     from email.utils import parseaddr
-    from datetime import datetime
+    from datetime import datetime, timezone
     from django.db.models import F
 
     account_id = request.GET.get('account_id')
@@ -2190,57 +2233,39 @@ def api_friends_sync(request):
     if not friends:
         return _json_ok(updated=0, friends=[])
 
-    # 友達メールアドレスをセットに（小文字）
-    friend_set = {f.email_address.lower() for f in friends}
-
     def _norm(v):
         _, addr = parseaddr((v or '').strip().lower())
         return (addr or v).strip().lower()
 
-    # email -> {'subject', 'received_at', 'direction'}
+    # email -> {'subject', 'received_at'}
     latest: dict = {}
 
-    try:
-        client = _get_mail_client(account)
-        client.connect_imap()
-        try:
-            # ---- 受信トレイをスキャン ----
-            inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
-            if not inbox:
-                inbox = MailFolder.objects.filter(account=account, remote_name__iexact='INBOX').first()
-            if inbox:
-                inbox_uids = sorted(client.get_folder_uids(inbox.remote_name), reverse=True)[:500]
-                for em in client.fetch_emails_by_uids(inbox.remote_name, inbox_uids):
-                    fa = _norm(em.get('from_address', ''))
-                    if fa not in friend_set:
-                        continue
-                    rat = em.get('received_at') or ''
-                    if fa not in latest or rat > latest[fa]['received_at']:
-                        latest[fa] = {'subject': em.get('subject', ''), 'received_at': rat, 'direction': 'received'}
+    # ---- 受信キャッシュをスキャン ----
+    inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
+    if inbox:
+        for ec in EmailCache.objects.filter(folder=inbox).order_by('-received_at')[:500]:
+            fa = _norm(ec.from_address)
+            if not fa or not ec.received_at:
+                continue
+            if fa not in latest or ec.received_at > latest[fa]['received_at']:
+                latest[fa] = {'subject': ec.subject, 'received_at': ec.received_at}
 
-            # ---- 送信済みフォルダをスキャン ----
-            sent_folder = (
-                MailFolder.objects.filter(account=account, folder_type='sent').first()
-                or MailFolder.objects.filter(account=account, remote_name__iregex=r'sent').first()
-            )
-            if sent_folder:
-                sent_uids = sorted(client.get_folder_uids(sent_folder.remote_name), reverse=True)[:300]
-                for em in client.fetch_emails_by_uids(sent_folder.remote_name, sent_uids):
-                    for to_raw in (em.get('to_addresses') or []):
-                        ta = _norm(to_raw)
-                        if ta not in friend_set:
-                            continue
-                        rat = em.get('received_at') or ''
-                        if ta not in latest or rat > latest[ta]['received_at']:
-                            latest[ta] = {'subject': em.get('subject', ''), 'received_at': rat, 'direction': 'sent'}
-                        break
-        finally:
-            client.disconnect_imap()
-    except ImapConnectionError as e:
-        return _json_error(f'IMAP接続エラー: {e}')
-    except Exception as e:
-        logger.warning('friends_sync エラー: %s', e)
-        return _json_error(f'エラー: {e}')
+    # ---- 送信キャッシュをスキャン ----
+    sent_folder = (
+        MailFolder.objects.filter(account=account, folder_type='sent').first()
+        or MailFolder.objects.filter(account=account, remote_name__iregex=r'sent').first()
+    )
+    if sent_folder:
+        for ec in EmailCache.objects.filter(folder=sent_folder).order_by('-received_at')[:300]:
+            if not ec.received_at:
+                continue
+            for to_raw in (ec.to_addresses or []):
+                ta = _norm(to_raw)
+                if not ta:
+                    continue
+                if ta not in latest or ec.received_at > latest[ta]['received_at']:
+                    latest[ta] = {'subject': ec.subject, 'received_at': ec.received_at}
+                break
 
     # DB 更新
     updated = 0
@@ -2250,7 +2275,9 @@ def api_friends_sync(request):
             continue
         try:
             subj = (info['subject'] or '')[:300]
-            dt = datetime.fromisoformat(info['received_at']) if info['received_at'] else None
+            dt = info['received_at']
+            if dt and dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
             changed = False
             if subj != friend.last_email_subject:
                 friend.last_email_subject = subj
@@ -2259,7 +2286,7 @@ def api_friends_sync(request):
                 friend.last_email_at = dt
                 changed = True
             if changed:
-                friend.save()
+                friend.save(update_fields=['last_email_subject', 'last_email_at'])
                 updated += 1
         except Exception:
             pass
