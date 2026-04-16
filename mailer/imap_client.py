@@ -86,16 +86,22 @@ def _parse_addresses(header_value: str) -> list[str]:
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
 def _get_oauth2_access_token(account) -> str:
-    """OAuth2アカウントのアクセストークンを取得（キャッシュ優先、必要に応じてリフレッシュ）"""
-    from django.core.cache import cache
+    """OAuth2アカウントのアクセストークンを取得（DBキャッシュ優先、必要に応じてリフレッシュ）"""
     from django.conf import settings as _settings
+    from django.utils import timezone as _tz
+    import datetime
+
+    # DBキャッシュが有効なら再利用（有効期限5分前まで）
+    if (
+        account.oauth2_access_token
+        and account.oauth2_access_token_expires_at
+        and account.oauth2_access_token_expires_at > _tz.now() + datetime.timedelta(minutes=5)
+    ):
+        return account.oauth2_access_token
+
+    # リフレッシュ
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request as GoogleRequest
-
-    cache_key = f'gmail_token:{account.id}'
-    cached_token = cache.get(cache_key)
-    if cached_token:
-        return cached_token
 
     refresh_token = account.get_refresh_token()
     creds = Credentials(
@@ -107,8 +113,13 @@ def _get_oauth2_access_token(account) -> str:
         scopes=['https://mail.google.com/'],
     )
     creds.refresh(GoogleRequest())
-    # Google トークンの有効期限は3600秒 → 55分でキャッシュ
-    cache.set(cache_key, creds.token, timeout=3300)
+
+    # DBに保存（全プロセス共有）
+    expires_at = _tz.now() + datetime.timedelta(seconds=3300)
+    account.oauth2_access_token = creds.token
+    account.oauth2_access_token_expires_at = expires_at
+    account.save(update_fields=['oauth2_access_token', 'oauth2_access_token_expires_at'])
+
     return creds.token
 
 

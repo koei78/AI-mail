@@ -74,6 +74,9 @@ class MailAccount(models.Model):
         blank=True,
         verbose_name='OAuth2リフレッシュトークン（暗号化済み）',
     )
+    # OAuth2アクセストークン（平文、DBキャッシュ用）
+    oauth2_access_token = models.TextField(blank=True, verbose_name='OAuth2アクセストークン')
+    oauth2_access_token_expires_at = models.DateTimeField(null=True, blank=True, verbose_name='アクセストークン有効期限')
 
     class Meta:
         verbose_name = 'メールアカウント'
