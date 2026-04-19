@@ -2,6 +2,7 @@ services:
   - type: web
     name: aimail
     runtime: python
+    pythonVersion: "3.12.8"
     buildCommand: ./build.sh
     startCommand: ./start.sh
     envVars:
@@ -10,7 +11,7 @@ services:
       - key: DEBUG
         value: "False"
       - key: ALLOWED_HOSTS
-        value: "localhost,127.0.0.1"
+        value: "localhost,127.0.0.1,hayamail.jp"
       - key: DB_NAME
         sync: false
       - key: DB_USER
