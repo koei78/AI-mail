@@ -198,7 +198,7 @@ if CELERY_BROKER_URL.startswith('rediss://'):
 CELERY_BEAT_SCHEDULE = {
     'sync-all-accounts': {
         'task': 'mailer.tasks.sync_all_accounts_task',
-        'schedule': crontab(minute='*/15'),
+        'schedule': crontab(minute='0'),  # 1時間ごと
     },
     'check-classify-schedules': {
         'task': 'mailer.tasks.check_classify_schedules_task',

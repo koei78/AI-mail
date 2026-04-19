@@ -86,20 +86,18 @@ def _parse_addresses(header_value: str) -> list[str]:
     return [addr.strip() for addr in header_value.split(',') if addr.strip()]
 
 def _get_oauth2_access_token(account) -> str:
-    """OAuth2アカウントのアクセストークンを取得（DBキャッシュ優先、必要に応じてリフレッシュ）"""
+    """DBに保存されたアクセストークンを返す。未取得の場合のみ新規取得する。"""
+    if account.oauth2_access_token:
+        return account.oauth2_access_token
+    return _refresh_oauth2_access_token(account)
+
+
+def _refresh_oauth2_access_token(account) -> str:
+    """リフレッシュトークンでアクセストークンを強制再取得してDBに保存する。
+    トークン切れエラーが発生したときだけ呼び出す。"""
     from django.conf import settings as _settings
     from django.utils import timezone as _tz
     import datetime
-
-    # DBキャッシュが有効なら再利用（有効期限5分前まで）
-    if (
-        account.oauth2_access_token
-        and account.oauth2_access_token_expires_at
-        and account.oauth2_access_token_expires_at > _tz.now() + datetime.timedelta(minutes=5)
-    ):
-        return account.oauth2_access_token
-
-    # リフレッシュ
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request as GoogleRequest
 
@@ -114,25 +112,32 @@ def _get_oauth2_access_token(account) -> str:
     )
     creds.refresh(GoogleRequest())
 
-    # DBに保存（全プロセス共有）
-    expires_at = _tz.now() + datetime.timedelta(seconds=3300)
+    expires_at = creds.expiry if creds.expiry else _tz.now() + datetime.timedelta(hours=1)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=datetime.timezone.utc)
+
     account.oauth2_access_token = creds.token
     account.oauth2_access_token_expires_at = expires_at
     account.save(update_fields=['oauth2_access_token', 'oauth2_access_token_expires_at'])
-
     return creds.token
 
 
 def _send_via_gmail_api(account, raw_bytes: bytes) -> None:
     """Gmail API経由でメールを送信する（auth_type='oauth2'専用）"""
-    access_token = _get_oauth2_access_token(account)
     encoded = base64.urlsafe_b64encode(raw_bytes).decode()
-    resp = _requests.post(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-        headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
-        json={'raw': encoded},
-        timeout=30,
-    )
+
+    def _do_send(token):
+        return _requests.post(
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+            json={'raw': encoded},
+            timeout=30,
+        )
+
+    resp = _do_send(_get_oauth2_access_token(account))
+    if resp.status_code == 401:
+        # トークン切れ → リフレッシュして1回だけリトライ
+        resp = _do_send(_refresh_oauth2_access_token(account))
     if not resp.ok:
         raise SmtpConnectionError(f'Gmail API送信エラー ({resp.status_code}): {resp.text[:200]}')
 
@@ -331,7 +336,12 @@ class MailClient:
             auth_type = getattr(self.account, 'auth_type', 'password')
             if auth_type == 'oauth2':
                 access_token = _get_oauth2_access_token(self.account)
-                self._imap.oauth2_login(self.account.email_address, access_token)
+                try:
+                    self._imap.oauth2_login(self.account.email_address, access_token)
+                except imapclient.IMAPClient.Error:
+                    # トークン切れの可能性 → リフレッシュして1回だけリトライ
+                    access_token = _refresh_oauth2_access_token(self.account)
+                    self._imap.oauth2_login(self.account.email_address, access_token)
             else:
                 self._imap.login(
                     self.account.username,
