@@ -872,16 +872,27 @@ function renderMessages(messages, friendEmail, friendName, friendColor){
 }
 
 async function loadBodiesAsync(messages){
-  // キャッシュ済みはすぐ反映、未取得は並列fetch
-  const tasks=messages.map(async m=>{
+  // DBキャッシュ済みはすぐ反映、未取得のみIMAPフェッチ（直列・最大5件）
+  const uncached=[];
+  for(const m of messages){
     const el=document.getElementById('body-'+m.uid);
-    if(!el) return;
+    if(!el) continue;
     if(_bodyCache[m.uid]!==undefined){
-      el.textContent=_bodyCache[m.uid]||'（本文なし）';
-      el.classList.remove('loading');
-      return;
+      el.textContent=_bodyCache[m.uid]||'（本文なし）'; el.classList.remove('loading'); continue;
     }
-    if(!m.folder_id){ el.textContent='（本文なし）'; el.classList.remove('loading'); return; }
+    // サーバーがすでに本文を返している場合（body_cached=True）
+    if(m.body_text!=null||m.body_html!=null){
+      const raw=(m.body_text||m.body_html||'').trim();
+      const body=raw.length>1500?raw.slice(0,1500)+'…':raw||'（本文なし）';
+      _bodyCache[m.uid]=body; el.textContent=body; el.classList.remove('loading'); continue;
+    }
+    if(!m.folder_id){ el.textContent='（本文なし）'; el.classList.remove('loading'); continue; }
+    uncached.push(m);
+  }
+  // 未キャッシュ分は直列で取得（並列IMAP接続を避ける）
+  for(const m of uncached){
+    const el=document.getElementById('body-'+m.uid);
+    if(!el) continue;
     try{
       const res=await fetch(`/mail/api/emails/${m.uid}/?folder_id=${m.folder_id}`);
       const data=await res.json();
@@ -891,14 +902,12 @@ async function loadBodiesAsync(messages){
         _bodyCache[m.uid]=body;
         if(el){ el.textContent=body; el.classList.remove('loading'); }
       } else {
-        _bodyCache[m.uid]='';
-        if(el){ el.textContent='（取得失敗）'; el.classList.remove('loading'); }
+        _bodyCache[m.uid]=''; if(el){ el.textContent='（取得失敗）'; el.classList.remove('loading'); }
       }
     }catch(e){
       if(el){ el.textContent='（通信エラー）'; el.classList.remove('loading'); }
     }
-  });
-  await Promise.allSettled(tasks);
+  }
 }
 
 // ===== リアルタイム更新 =====
@@ -926,24 +935,30 @@ function appendMessage(m, friendName, friendColor){
     '</div>';
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
-  // 本文取得
-  if(m.folder_id && _bodyCache[m.uid]===undefined){
-    fetch('/mail/api/emails/'+m.uid+'/?folder_id='+m.folder_id)
-      .then(r=>r.json()).then(d=>{
-        const el=document.getElementById('body-'+m.uid);
-        if(!el) return;
-        if(d.ok){
-          const raw=(d.email?.body_text||d.email?.body_html||'').trim();
-          const body=raw.length>1500?raw.slice(0,1500)+'…':raw||'（本文なし）';
-          _bodyCache[m.uid]=body; el.textContent=body; el.classList.remove('loading');
-        } else { el.textContent='（取得失敗）'; el.classList.remove('loading'); }
-      }).catch(()=>{
-        const el=document.getElementById('body-'+m.uid);
-        if(el){ el.textContent='（通信エラー）'; el.classList.remove('loading'); }
-      });
-  } else if(_bodyCache[m.uid]!==undefined){
-    const el=document.getElementById('body-'+m.uid);
-    if(el){ el.textContent=_bodyCache[m.uid]||'（本文なし）'; el.classList.remove('loading'); }
+  // 本文表示（DBキャッシュ優先、なければIMAP）
+  const bodyEl=document.getElementById('body-'+m.uid);
+  if(bodyEl){
+    if(_bodyCache[m.uid]!==undefined){
+      bodyEl.textContent=_bodyCache[m.uid]||'（本文なし）'; bodyEl.classList.remove('loading');
+    } else if(m.body_text!=null||m.body_html!=null){
+      const raw=(m.body_text||m.body_html||'').trim();
+      const body=raw.length>1500?raw.slice(0,1500)+'…':raw||'（本文なし）';
+      _bodyCache[m.uid]=body; bodyEl.textContent=body; bodyEl.classList.remove('loading');
+    } else if(m.folder_id){
+      fetch('/mail/api/emails/'+m.uid+'/?folder_id='+m.folder_id)
+        .then(r=>r.json()).then(d=>{
+          const el=document.getElementById('body-'+m.uid);
+          if(!el) return;
+          if(d.ok){
+            const raw=(d.email?.body_text||d.email?.body_html||'').trim();
+            const body=raw.length>1500?raw.slice(0,1500)+'…':raw||'（本文なし）';
+            _bodyCache[m.uid]=body; el.textContent=body; el.classList.remove('loading');
+          } else { el.textContent='（取得失敗）'; el.classList.remove('loading'); }
+        }).catch(()=>{
+          const el=document.getElementById('body-'+m.uid);
+          if(el){ el.textContent='（通信エラー）'; el.classList.remove('loading'); }
+        });
+    }
   }
 }
 
