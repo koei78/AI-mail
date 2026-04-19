@@ -180,6 +180,17 @@ def _serialize_imap_email(email_data: dict, folder_id: int, labels: list | None 
     }
 
 
+def _mark_read_imap(folder, uid):
+    """バックグラウンドでIMAPの既読フラグを更新する"""
+    try:
+        client = _get_mail_client(folder.account)
+        client.connect_imap()
+        client.mark_as_read(uid, folder.remote_name)
+        client.disconnect_imap()
+    except Exception as e:
+        logger.warning('IMAP既読フラグ更新失敗 uid=%s: %s', uid, e)
+
+
 def _start_account_sync(account_id: int, log_label: str) -> None:
     def _run_sync(target_account_id: int) -> None:
         try:
@@ -537,6 +548,39 @@ def api_email_detail(request, uid):
         return folder
 
     if request.method == 'GET':
+        # DBキャッシュに本文があればIMAPアクセスなしで即返す
+        cached = EmailCache.objects.filter(folder=folder, uid=uid).first()
+        if cached and cached.body_cached:
+            was_unread = not cached.is_read
+            if was_unread:
+                cached.is_read = True
+                cached.save(update_fields=['is_read'])
+                folder.unread_count = max(0, folder.unread_count - 1)
+                folder.save(update_fields=['unread_count'])
+                Thread(target=lambda: _mark_read_imap(folder, uid), daemon=True).start()
+
+            message_id = cached.message_id or ''
+            labels = []
+            if message_id:
+                labels = [
+                    _serialize_label(el.label)
+                    for el in EmailLabel.objects.filter(
+                        account=folder.account, message_id=message_id
+                    ).select_related('label')
+                ]
+            email_data = {
+                'uid': cached.uid, 'folder_id': folder.id,
+                'message_id': cached.message_id, 'subject': cached.subject,
+                'from_address': cached.from_address, 'to_addresses': cached.to_addresses,
+                'received_at': cached.received_at.isoformat() if cached.received_at else None,
+                'is_read': cached.is_read, 'is_starred': cached.is_starred,
+                'has_attachments': cached.has_attachments,
+                'body_text': cached.body_text, 'body_html': cached.body_html,
+                'attachments': [], 'labels': labels,
+            }
+            return _json_ok({'email': email_data})
+
+        # DBに本文なし → IMAPから取得してキャッシュ保存
         try:
             client = _get_mail_client(folder.account)
             client.connect_imap()
@@ -553,11 +597,17 @@ def api_email_detail(request, uid):
         except ImapConnectionError as e:
             return _json_error(str(e))
 
+        # 本文をDBに保存
+        EmailCache.objects.filter(folder=folder, uid=uid).update(
+            body_text=body_data.get('body_text', ''),
+            body_html=body_data.get('body_html', ''),
+            body_cached=True,
+            is_read=True,
+        )
+
         if was_unread:
             folder.unread_count = max(0, folder.unread_count - 1)
             folder.save(update_fields=['unread_count'])
-            # キャッシュの既読フラグも更新
-            EmailCache.objects.filter(folder=folder, uid=uid).update(is_read=True)
 
         message_id = summary.get('message_id', '')
         labels = []

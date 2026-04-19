@@ -283,6 +283,9 @@ class EmailCache(models.Model):
     is_starred = models.BooleanField(default=False, verbose_name='スター')
     has_attachments = models.BooleanField(default=False, verbose_name='添付あり')
     size = models.IntegerField(default=0, verbose_name='サイズ')
+    body_text = models.TextField(blank=True, verbose_name='本文テキスト')
+    body_html = models.TextField(blank=True, verbose_name='本文HTML')
+    body_cached = models.BooleanField(default=False, verbose_name='本文キャッシュ済み')
     cached_at = models.DateTimeField(auto_now=True, verbose_name='キャッシュ日時')
 
     class Meta:
