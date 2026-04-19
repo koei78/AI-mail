@@ -2205,7 +2205,8 @@ def api_friend_messages(request):
                         'to_addresses': ec.to_addresses,
                         'received_at': dt.isoformat() if dt else None,
                         'is_read': ec.is_read,
-                        'body_text': None,
+                        'body_text': ec.body_text if ec.body_cached else None,
+                        'body_html': ec.body_html if ec.body_cached else None,
                     })
 
         # ===== 送信: to_addresses に友達が含まれる =====
@@ -2232,7 +2233,8 @@ def api_friend_messages(request):
                         'to_addresses': ec.to_addresses,
                         'received_at': dt.isoformat() if dt else None,
                         'is_read': ec.is_read,
-                        'body_text': None,
+                        'body_text': ec.body_text if ec.body_cached else None,
+                        'body_html': ec.body_html if ec.body_cached else None,
                     })
 
     # 日時順（古い順）にソート — datetime オブジェクトで比較してタイムゾーン差を吸収
