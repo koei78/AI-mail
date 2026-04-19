@@ -437,15 +437,12 @@ def api_emails(request):
     cache_count = EmailCache.objects.filter(folder=folder).count()
 
     if cache_count == 0:
-        # 初回: 同期してからDBで返す
+        # 初回のみ: 同期してからDBで返す
         result = sync_emails_cache(folder)
         if result.get('errors'):
-            # 同期失敗 → IMAP直接取得にフォールバック
             logger.warning('初回キャッシュ同期失敗、IMAP直接取得にフォールバック folder=%s: %s', folder.id, result['errors'])
             return _api_emails_imap(folder, page, per_page)
-    else:
-        # 2回目以降: バックグラウンドで差分更新
-        Thread(target=sync_emails_cache, args=(folder,), daemon=True).start()
+    # 2回目以降はDBから返すのみ（同期はボタン押下時のみ）
 
     # DBから取得して返す
     total = EmailCache.objects.filter(folder=folder).count()
@@ -2192,9 +2189,7 @@ def api_friend_messages(request):
         inbox = MailFolder.objects.filter(account=account, folder_type='inbox').first()
         if inbox:
             if not EmailCache.objects.filter(folder=inbox).exists():
-                sync_emails_cache(inbox)  # 初回は同期的に取得
-            else:
-                Thread(target=sync_emails_cache, args=(inbox,), daemon=True).start()
+                sync_emails_cache(inbox)  # 初回のみ同期
             cache_qs = EmailCache.objects.filter(folder=inbox).order_by('-received_at', '-cached_at')[:500]
             for ec in cache_qs:
                 if _email_matches(ec.from_address, friend_email):
@@ -2220,9 +2215,7 @@ def api_friend_messages(request):
         )
         if sent_folder:
             if not EmailCache.objects.filter(folder=sent_folder).exists():
-                sync_emails_cache(sent_folder)  # 初回は同期的に取得
-            else:
-                Thread(target=sync_emails_cache, args=(sent_folder,), daemon=True).start()
+                sync_emails_cache(sent_folder)  # 初回のみ同期
             cache_qs = EmailCache.objects.filter(folder=sent_folder).order_by('-received_at', '-cached_at')[:300]
             for ec in cache_qs:
                 if any(_email_matches(addr, friend_email) for addr in (ec.to_addresses or [])):
