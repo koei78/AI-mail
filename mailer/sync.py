@@ -140,6 +140,9 @@ def sync_emails_cache(folder: MailFolder, max_new: int = 500) -> dict:
                     is_starred=e.get('is_starred', False),
                     has_attachments=e.get('has_attachments', False),
                     size=e.get('size', 0),
+                    body_text='',
+                    body_html='',
+                    body_cached=False,
                 ))
             EmailCache.objects.bulk_create(objs, ignore_conflicts=True)
             result['added'] = len(objs)
