@@ -594,12 +594,29 @@ def api_email_detail(request, uid):
         except ImapConnectionError as e:
             return _json_error(str(e))
 
-        # 本文をDBに保存
-        EmailCache.objects.filter(folder=folder, uid=uid).update(
-            body_text=body_data.get('body_text', ''),
-            body_html=body_data.get('body_html', ''),
-            body_cached=True,
-            is_read=True,
+        # 本文をDBに保存（行がなければ作成、あれば更新）
+        from django.utils.dateparse import parse_datetime as _pdtm
+        _recv = summary.get('received_at')
+        if isinstance(_recv, str):
+            _recv = _pdtm(_recv)
+        EmailCache.objects.update_or_create(
+            folder=folder,
+            uid=uid,
+            defaults={
+                'account': folder.account,
+                'message_id': summary.get('message_id', ''),
+                'subject': summary.get('subject', ''),
+                'from_address': summary.get('from_address', ''),
+                'to_addresses': summary.get('to_addresses', []),
+                'received_at': _recv,
+                'is_read': True,
+                'is_starred': summary.get('is_starred', False),
+                'has_attachments': body_data.get('has_attachments', False),
+                'size': summary.get('size', 0),
+                'body_text': body_data.get('body_text', ''),
+                'body_html': body_data.get('body_html', ''),
+                'body_cached': True,
+            },
         )
 
         if was_unread:
