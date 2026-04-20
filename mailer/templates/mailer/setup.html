@@ -18,62 +18,150 @@
     }
     .card {
       background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0,0,0,.12);
+      border-radius: 16px;
+      box-shadow: 0 4px 32px rgba(0,0,0,.12);
       width: 100%;
-      max-width: 560px;
+      max-width: 620px;
       overflow: hidden;
     }
-    .card-header {
-      background: #2563eb;
-      color: #fff;
-      padding: 24px 32px;
-    }
-    .card-header h1 { font-size: 1.4rem; font-weight: 700; }
-    .card-header p { font-size: .9rem; opacity: .85; margin-top: 4px; }
-    .steps {
+
+    /* ステップインジケーター */
+    .step-indicator {
       display: flex;
-      gap: 0;
-      padding: 20px 32px 0;
-      border-bottom: 1px solid #e5e7eb;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 28px 36px 20px;
+      background: #fff;
+      border-bottom: 1px solid #f1f5f9;
     }
-    .step-tab {
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .step-circle {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #94a3b8;
+      color: #fff;
+      font-size: .9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .25s;
+    }
+    .step-circle.active { background: #3b82f6; }
+    .step-circle.done { background: #10b981; }
+    .step-label {
+      font-size: .72rem;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+    .step-label.active { color: #3b82f6; font-weight: 600; }
+    .step-label.done { color: #10b981; }
+    .step-line {
       flex: 1;
-      text-align: center;
-      padding: 10px 4px;
-      font-size: .85rem;
-      color: #6b7280;
-      border-bottom: 3px solid transparent;
-      cursor: default;
-      transition: color .2s;
+      height: 2px;
+      background: #e2e8f0;
+      margin: 19px 6px 0;
+      transition: background .25s;
     }
-    .step-tab.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
-    .step-tab.done { color: #10b981; }
-    .card-body { padding: 28px 32px; }
-    .preset-label { font-size: .8rem; color: #6b7280; margin-bottom: 8px; }
-    .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
-    .preset-btn {
-      padding: 6px 14px;
-      border: 1px solid #d1d5db;
+    .step-line.done { background: #10b981; }
+
+    .card-body { padding: 28px 36px 36px; }
+
+    /* Step 1: サービス選択 */
+    .service-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #3b82f6;
+      margin-bottom: 8px;
+    }
+    .service-subtitle {
+      font-size: .88rem;
+      color: #64748b;
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+    .service-card {
+      background: #475569;
+      border-radius: 12px;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: background .18s, transform .12s, box-shadow .18s;
+      margin-bottom: 12px;
+      color: #f1f5f9;
+      text-decoration: none;
+      border: 2px solid transparent;
+      position: relative;
+    }
+    .service-card:hover {
+      background: #334155;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,.22);
+    }
+    .service-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .service-icon.gmail { background: #fff0ee; }
+    .service-icon.outlook { background: #e8f4fe; }
+    .service-icon.imap { background: #f1f5f9; }
+    .service-info { flex: 1; }
+    .service-name { font-size: 1rem; font-weight: 700; margin-bottom: 3px; }
+    .service-desc { font-size: .82rem; color: #cbd5e1; }
+    .service-badge {
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 4px 10px;
       border-radius: 20px;
-      background: #f9fafb;
+      flex-shrink: 0;
+    }
+    .badge-recommended { background: #3b82f6; color: #fff; }
+    .badge-advanced { background: #64748b; color: #e2e8f0; line-height: 1.4; text-align: center; }
+
+    /* 情報入力フォーム */
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 16px;
+    }
+    .preset-label { font-size: .8rem; color: #64748b; margin-bottom: 8px; }
+    .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .preset-btn {
+      padding: 5px 13px;
+      border: 1px solid #cbd5e1;
+      border-radius: 20px;
+      background: #f8fafc;
       font-size: .8rem;
       cursor: pointer;
       transition: all .15s;
     }
-    .preset-btn:hover { background: #e0e7ff; border-color: #2563eb; color: #2563eb; }
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: .85rem; font-weight: 600; color: #374151; margin-bottom: 5px; }
+    .preset-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; }
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: .84rem; font-weight: 600; color: #374151; margin-bottom: 5px; }
     input[type="text"], input[type="email"], input[type="password"], input[type="number"] {
       width: 100%;
       padding: 9px 12px;
-      border: 1px solid #d1d5db;
+      border: 1px solid #cbd5e1;
       border-radius: 7px;
       font-size: .9rem;
       outline: none;
-      transition: border-color .15s;
+      transition: border-color .15s, box-shadow .15s;
     }
-    input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
     .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
     .row input[type="number"] { width: 90px; }
     .ssl-group { display: flex; gap: 20px; align-items: center; }
@@ -83,41 +171,21 @@
       padding: 11px;
       border: none;
       border-radius: 8px;
-      font-size: 1rem;
+      font-size: .95rem;
       font-weight: 600;
       cursor: pointer;
       transition: background .15s, opacity .15s;
       margin-top: 8px;
     }
-    .btn-primary { background: #2563eb; color: #fff; }
-    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
     .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
     .btn-success { background: #10b981; color: #fff; }
     .btn-success:hover { background: #059669; }
-    .btn-google {
-      width: 100%;
-      padding: 11px;
-      border: 2px solid #4285f4;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      background: #fff;
-      color: #4285f4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: background .15s, color .15s;
-      text-decoration: none;
-      margin-bottom: 16px;
-    }
-    .btn-google:hover { background: #4285f4; color: #fff; }
-    .btn-google svg path { transition: fill .15s; }
-    .btn-google:hover svg path { fill: #fff; }
-    .divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #9ca3af; font-size: .85rem; }
-    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
-    /* 接続テスト結果 */
+    .btn-ghost { background: #f1f5f9; color: #475569; }
+    .btn-ghost:hover { background: #e2e8f0; }
+
+    /* 接続テスト */
     .test-results { margin: 16px 0; }
     .test-step {
       display: flex;
@@ -126,7 +194,7 @@
       padding: 10px 12px;
       border-radius: 8px;
       margin-bottom: 6px;
-      background: #f9fafb;
+      background: #f8fafc;
       font-size: .9rem;
       opacity: .4;
       transition: opacity .3s;
@@ -134,57 +202,107 @@
     .test-step.active { opacity: 1; }
     .test-step.ok { background: #f0fdf4; opacity: 1; }
     .test-step.fail { background: #fef2f2; opacity: 1; }
-    .step-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; flex-shrink: 0; }
-    .step-icon.pending { background: #e5e7eb; }
-    .step-icon.loading { background: #dbeafe; animation: spin 1s linear infinite; }
-    .step-icon.ok { background: #bbf7d0; color: #065f46; }
-    .step-icon.fail { background: #fecaca; color: #7f1d1d; }
+    .test-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; flex-shrink: 0; }
+    .test-icon.pending { background: #e2e8f0; }
+    .test-icon.loading { background: #dbeafe; animation: spin 1s linear infinite; }
+    .test-icon.ok { background: #bbf7d0; color: #065f46; }
+    .test-icon.fail { background: #fecaca; color: #7f1d1d; }
     .step-error { font-size: .75rem; color: #dc2626; margin-top: 2px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* 完了ステップ */
-    .complete-box { text-align: center; padding: 16px 0; }
+
+    /* 完了 */
+    .complete-box { text-align: center; padding: 24px 0; }
     .complete-box .icon { font-size: 3rem; margin-bottom: 12px; }
-    .complete-box h2 { font-size: 1.2rem; font-weight: 700; color: #111827; }
-    .complete-box p { color: #6b7280; font-size: .9rem; margin-top: 6px; }
+    .complete-box h2 { font-size: 1.2rem; font-weight: 700; color: #1e293b; }
+    .complete-box p { color: #64748b; font-size: .9rem; margin-top: 6px; line-height: 1.6; }
+
     /* ステップ切り替え */
     [data-step] { display: none; }
     [data-step].active { display: block; }
   </style>
 </head>
 <body>
-<!-- フォーム全体を1つの <form> でまとめる。
-     接続テストは AJAX（ステップ2）、登録はサーバーへの通常 POST（ステップ2→登録ボタン）。
-     ステップ1のフィールドは display:none になっても name 属性があれば POST に含まれる。 -->
 <form method="post" action="{% url 'mailer:setup_register' %}" id="setup-form">
 {% csrf_token %}
 <div class="card">
-  <div class="card-header">
-    <h1>📧 メールアカウントを追加</h1>
-    <p>独自ドメインのメールアカウントを設定してください</p>
-  </div>
 
-  <!-- ステップタブ -->
-  <div class="steps">
-    <div class="step-tab active" id="tab-1">① サーバー情報</div>
-    <div class="step-tab" id="tab-2">② 接続テスト</div>
-    <div class="step-tab" id="tab-3">③ 完了</div>
+  <!-- ステップインジケーター -->
+  <div class="step-indicator">
+    <div class="step-item">
+      <div class="step-circle active" id="circle-1">1</div>
+      <div class="step-label active" id="label-1">接続方法</div>
+    </div>
+    <div class="step-line" id="line-1-2"></div>
+    <div class="step-item">
+      <div class="step-circle" id="circle-2">2</div>
+      <div class="step-label" id="label-2">情報入力</div>
+    </div>
+    <div class="step-line" id="line-2-3"></div>
+    <div class="step-item">
+      <div class="step-circle" id="circle-3">3</div>
+      <div class="step-label" id="label-3">接続確認</div>
+    </div>
+    <div class="step-line" id="line-3-4"></div>
+    <div class="step-item">
+      <div class="step-circle" id="circle-4">4</div>
+      <div class="step-label" id="label-4">完了</div>
+    </div>
   </div>
 
   <div class="card-body">
-    <!-- Google OAuth2ログイン -->
-    <a href="{% url 'mailer:gmail_oauth_start' %}" class="btn-google">
-      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285f4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
-      Googleアカウントで Gmail を連携する
-    </a>
-    <!-- Microsoft OAuth2ログイン -->
-    <a href="{% url 'mailer:outlook_oauth_start' %}" class="btn-google" style="background:#0078d4;color:#fff;border-color:#0078d4;margin-top:10px">
-      <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
-      Microsoftアカウントで Outlook を連携する
-    </a>
-    <div class="divider">または手動で設定</div>
 
-    <!-- STEP 1: サーバー情報入力 -->
+    <!-- STEP 1: 接続方法選択 -->
     <div data-step="1" class="active">
+      <div class="service-title">メール連携方法を選択してください</div>
+      <div class="service-subtitle">接続するメールサービスを選んでください。後から変更することもできます。</div>
+
+      <a href="{% url 'mailer:gmail_oauth_start' %}" class="service-card">
+        <div class="service-icon gmail">
+          <svg width="28" height="28" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 5C13.5 5 5 13.5 5 24s8.5 19 19 19 19-8.5 19-19S34.5 5 24 5zm0 3.5c4.3 0 8.2 1.6 11.2 4.2L11.7 35.2C9.1 32.2 7.5 28.3 7.5 24c0-9.1 7.4-16.5 16.5-16.5zm0 33c-4.3 0-8.2-1.6-11.2-4.2l23.5-22.5c2.6 3 4.2 6.9 4.2 11.2 0 9.1-7.4 16.5-16.5 16.5z" fill="none"/>
+            <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/>
+          </svg>
+        </div>
+        <div class="service-info">
+          <div class="service-name">Gmailで連携</div>
+          <div class="service-desc">Googleアカウントで安全に接続</div>
+        </div>
+        <span class="service-badge badge-recommended">推奨</span>
+      </a>
+
+      <a href="{% url 'mailer:outlook_oauth_start' %}" class="service-card">
+        <div class="service-icon outlook">
+          <svg width="28" height="28" viewBox="0 0 21 21">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+        </div>
+        <div class="service-info">
+          <div class="service-name">Outlookで連携</div>
+          <div class="service-desc">Microsoftアカウントで接続</div>
+        </div>
+      </a>
+
+      <div class="service-card" id="btn-select-imap">
+        <div class="service-icon imap">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+        </div>
+        <div class="service-info">
+          <div class="service-name">IMAPで連携</div>
+          <div class="service-desc">独自メール・法人メールはこちら</div>
+        </div>
+        <span class="service-badge badge-advanced">上級者向け</span>
+      </div>
+    </div>
+
+    <!-- STEP 2: サーバー情報入力 -->
+    <div data-step="2">
+      <div class="section-title">サーバー情報を入力</div>
       <div class="preset-label">サーバープリセット</div>
       <div class="presets">
         <button type="button" class="preset-btn" data-preset="gmail" style="background:#fff0f0;border-color:#ea4335;color:#ea4335;font-weight:600">Gmail</button>
@@ -197,7 +315,7 @@
       <div id="gmail-hint" style="display:none;margin-bottom:16px;padding:12px 14px;background:#fff8e1;border:1px solid #f0c040;border-radius:8px;font-size:.82rem;color:#7a5800;">
         <strong>Gmail をご利用の場合</strong><br>
         パスワード欄には <strong>アプリパスワード</strong> を入力してください（通常のGmailパスワードは使えません）。<br>
-        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" style="color:#0078d4">アプリパスワードの発行 →</a>
+        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" style="color:#2563eb">アプリパスワードの発行 →</a>
         　※ Googleアカウントで2段階認証が有効になっている必要があります。
       </div>
 
@@ -217,7 +335,6 @@
         <label>ログインID（メアドと異なる場合のみ）</label>
         <input type="text" id="username" name="username" placeholder="空欄の場合はメールアドレスを使用">
       </div>
-
       <div class="form-group">
         <label>受信サーバー（IMAP）</label>
         <div class="row">
@@ -240,9 +357,7 @@
         </div>
       </div>
       <div class="form-group" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;">
-        <label style="color:#92400e;font-size:.82rem;margin-bottom:6px;">
-          🔒 SSL証明書の設定
-        </label>
+        <label style="color:#92400e;font-size:.82rem;margin-bottom:6px;">🔒 SSL証明書の設定</label>
         <div class="ssl-group">
           <label style="font-weight:400;font-size:.85rem;display:flex;align-items:flex-start;gap:6px;cursor:pointer">
             <input type="checkbox" id="ssl_verify" name="ssl_verify" checked style="margin-top:2px">
@@ -259,42 +374,43 @@
       </div>
 
       <button type="button" class="btn btn-primary" id="btn-to-test">接続テストへ →</button>
+      <button type="button" class="btn btn-ghost" id="btn-back-to-1" style="margin-top:6px;">← 戻る</button>
     </div>
 
-    <!-- STEP 2: 接続テスト -->
-    <div data-step="2">
-      <p style="margin-bottom:16px;color:#374151;">以下のボタンを押して接続テストを開始してください。</p>
+    <!-- STEP 3: 接続確認 -->
+    <div data-step="3">
+      <div class="section-title">接続テスト</div>
+      <p style="margin-bottom:16px;color:#475569;font-size:.9rem;">以下のボタンを押して接続テストを開始してください。</p>
       <div class="test-results" id="test-results">
         <div class="test-step" id="ts-imap-conn">
-          <div class="step-icon pending">…</div>
+          <div class="test-icon pending">…</div>
           <div><div>IMAP接続</div></div>
         </div>
         <div class="test-step" id="ts-imap-auth">
-          <div class="step-icon pending">…</div>
+          <div class="test-icon pending">…</div>
           <div><div>IMAP認証</div></div>
         </div>
         <div class="test-step" id="ts-folder">
-          <div class="step-icon pending">…</div>
+          <div class="test-icon pending">…</div>
           <div><div>フォルダ取得</div></div>
         </div>
         <div class="test-step" id="ts-smtp-conn">
-          <div class="step-icon pending">…</div>
+          <div class="test-icon pending">…</div>
           <div><div>SMTP接続</div></div>
         </div>
         <div class="test-step" id="ts-smtp-auth">
-          <div class="step-icon pending">…</div>
+          <div class="test-icon pending">…</div>
           <div><div>SMTP認証</div></div>
         </div>
       </div>
       <button type="button" class="btn btn-primary" id="btn-test-start">テスト開始</button>
       <div id="test-hint" style="margin:10px 0;padding:10px 14px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:.82rem;color:#1e40af;display:block;min-height:0;"></div>
-      <!-- type="submit" でフォームをサーバーへ POST する（JS の fetch 不要） -->
       <button type="submit" class="btn btn-success" id="btn-register" disabled style="margin-top:6px;">登録する ✓</button>
-      <button type="button" class="btn" id="btn-back" style="background:#f3f4f6;color:#374151;margin-top:6px;">← 戻る</button>
+      <button type="button" class="btn btn-ghost" id="btn-back" style="margin-top:6px;">← 戻る</button>
     </div>
 
-    <!-- STEP 3: 完了 -->
-    <div data-step="3">
+    <!-- STEP 4: 完了 -->
+    <div data-step="4">
       <div class="complete-box">
         <div class="icon">🎉</div>
         <h2>設定が完了しました！</h2>
@@ -305,53 +421,22 @@
       </div>
     </div>
 
-  </div><!-- /card-body -->
-</div><!-- /card -->
-</form><!-- /setup-form -->
+  </div>
+</div>
+</form>
 
 <script>
-// CSRFトークンは <meta name="csrf-token"> から取得（クッキー解析不要）
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]').content;
 
 // =============================
 // サーバープリセット
 // =============================
 const PRESETS = {
-  gmail: {
-    imap_host: 'imap.gmail.com',
-    imap_port: 993,
-    smtp_host: 'smtp.gmail.com',
-    smtp_port: 587,
-    ssl: 'starttls',
-  },
-  sakura: {
-    imap_host: '受信メールサーバーを入力(mail.yourdomain.sakura.ne.jp)',
-    imap_port: 993,
-    smtp_host: '送信メールサーバーを入力(mail.yourdomain.sakura.ne.jp)',
-    smtp_port: 587,
-    ssl: 'starttls',
-  },
-  xserver: {
-    imap_host: 'sv****.xserver.jp',
-    imap_port: 993,
-    smtp_host: 'sv****.xserver.jp',
-    smtp_port: 465,
-    ssl: 'ssl',
-  },
-  onamae: {
-    imap_host: 'mail.onamae.com',
-    imap_port: 993,
-    smtp_host: 'mail.onamae.com',
-    smtp_port: 465,
-    ssl: 'ssl',
-  },
-  lolipop: {
-    imap_host: 'mail.lolipop.jp',
-    imap_port: 993,
-    smtp_host: 'mail.lolipop.jp',
-    smtp_port: 465,
-    ssl: 'ssl',
-  },
+  gmail:   { imap_host: 'imap.gmail.com',                                                    imap_port: 993, smtp_host: 'smtp.gmail.com',                                                    smtp_port: 587, ssl: 'starttls' },
+  sakura:  { imap_host: '受信メールサーバーを入力(mail.yourdomain.sakura.ne.jp)',               imap_port: 993, smtp_host: '送信メールサーバーを入力(mail.yourdomain.sakura.ne.jp)',               smtp_port: 587, ssl: 'starttls' },
+  xserver: { imap_host: 'sv****.xserver.jp',                                                  imap_port: 993, smtp_host: 'sv****.xserver.jp',                                                  smtp_port: 465, ssl: 'ssl' },
+  onamae:  { imap_host: 'mail.onamae.com',                                                    imap_port: 993, smtp_host: 'mail.onamae.com',                                                    smtp_port: 465, ssl: 'ssl' },
+  lolipop: { imap_host: 'mail.lolipop.jp',                                                    imap_port: 993, smtp_host: 'mail.lolipop.jp',                                                    smtp_port: 465, ssl: 'ssl' },
 };
 
 document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -362,11 +447,8 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
     document.getElementById('imap_port').value = p.imap_port;
     document.getElementById('smtp_host').value = p.smtp_host;
     document.getElementById('smtp_port').value = p.smtp_port;
-    document.querySelectorAll('[name="ssl"]').forEach(r => {
-      r.checked = r.value === p.ssl;
-    });
-    document.getElementById('gmail-hint').style.display =
-      btn.dataset.preset === 'gmail' ? 'block' : 'none';
+    document.querySelectorAll('[name="ssl"]').forEach(r => { r.checked = r.value === p.ssl; });
+    document.getElementById('gmail-hint').style.display = btn.dataset.preset === 'gmail' ? 'block' : 'none';
   });
 });
 
@@ -376,41 +458,57 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
 function goStep(n) {
   document.querySelectorAll('[data-step]').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-step="${n}"]`).classList.add('active');
-  document.querySelectorAll('.step-tab').forEach((t, i) => {
-    t.classList.remove('active', 'done');
-    if (i + 1 < n) t.classList.add('done');
-    if (i + 1 === n) t.classList.add('active');
-  });
+
+  for (let i = 1; i <= 4; i++) {
+    const circle = document.getElementById(`circle-${i}`);
+    const label  = document.getElementById(`label-${i}`);
+    circle.className = 'step-circle';
+    label.className  = 'step-label';
+    if (i < n) {
+      circle.classList.add('done'); label.classList.add('done');
+      circle.textContent = '✓';
+    } else if (i === n) {
+      circle.classList.add('active'); label.classList.add('active');
+      circle.textContent = i;
+    } else {
+      circle.textContent = i;
+    }
+  }
+  for (let i = 1; i <= 3; i++) {
+    const line = document.getElementById(`line-${i}-${i+1}`);
+    line.className = 'step-line' + (i < n ? ' done' : '');
+  }
 }
 
-document.getElementById('btn-back').addEventListener('click', () => goStep(1));
+document.getElementById('btn-select-imap').addEventListener('click', () => goStep(2));
+document.getElementById('btn-back-to-1').addEventListener('click', () => goStep(1));
+document.getElementById('btn-back').addEventListener('click', () => goStep(2));
 
 document.getElementById('btn-to-test').addEventListener('click', () => {
-  const email = document.getElementById('email_address').value.trim();
-  const password = document.getElementById('password').value;
+  const email     = document.getElementById('email_address').value.trim();
+  const password  = document.getElementById('password').value;
   const imap_host = document.getElementById('imap_host').value.trim();
   const smtp_host = document.getElementById('smtp_host').value.trim();
   if (!email || !password || !imap_host || !smtp_host) {
     alert('必須項目（メールアドレス、パスワード、IMAPホスト、SMTPホスト）を入力してください。');
     return;
   }
-  // テスト結果をリセット
   resetTestUI();
-  goStep(2);
+  goStep(3);
 });
 
 // =============================
-// テスト結果UI
+// テスト結果 UI
 // =============================
 const STEP_IDS = ['ts-imap-conn', 'ts-imap-auth', 'ts-folder', 'ts-smtp-conn', 'ts-smtp-auth'];
-const STEP_NAMES = ['IMAP接続', 'IMAP認証', 'フォルダ取得', 'SMTP接続', 'SMTP認証'];
 
 function resetTestUI() {
   STEP_IDS.forEach(id => {
-    const el = document.getElementById(id);
+    const el   = document.getElementById(id);
     el.className = 'test-step';
-    el.querySelector('.step-icon').className = 'step-icon pending';
-    el.querySelector('.step-icon').textContent = '…';
+    const icon = el.querySelector('.test-icon');
+    icon.className   = 'test-icon pending';
+    icon.textContent = '…';
     const err = el.querySelector('.step-error');
     if (err) err.remove();
   });
@@ -418,32 +516,25 @@ function resetTestUI() {
 }
 
 function updateStep(index, status, error) {
-  const el = document.getElementById(STEP_IDS[index]);
+  const el   = document.getElementById(STEP_IDS[index]);
+  const icon = el.querySelector('.test-icon');
   el.classList.add('active');
-  const icon = el.querySelector('.step-icon');
   if (status === 'loading') {
-    icon.className = 'step-icon loading';
-    icon.textContent = '↻';
+    icon.className = 'test-icon loading'; icon.textContent = '↻';
   } else if (status === 'ok') {
-    el.classList.add('ok');
-    icon.className = 'step-icon ok';
-    icon.textContent = '✓';
+    el.classList.add('ok'); icon.className = 'test-icon ok'; icon.textContent = '✓';
   } else {
-    el.classList.add('fail');
-    icon.className = 'step-icon fail';
-    icon.textContent = '✗';
+    el.classList.add('fail'); icon.className = 'test-icon fail'; icon.textContent = '✗';
     if (error) {
       const errEl = document.createElement('div');
-      errEl.className = 'step-error';
+      errEl.className   = 'step-error';
       errEl.textContent = error;
       el.querySelector('div:last-child').appendChild(errEl);
     }
   }
 }
 
-function setTestHint(message = '') {
-  document.getElementById('test-hint').textContent = message;
-}
+function setTestHint(msg = '') { document.getElementById('test-hint').textContent = msg; }
 
 // =============================
 // 接続テスト実行
@@ -452,40 +543,33 @@ document.getElementById('btn-test-start').addEventListener('click', async () => 
   resetTestUI();
   setTestHint('');
   const btn = document.getElementById('btn-test-start');
-  btn.disabled = true;
-  btn.textContent = 'テスト中…';
+  btn.disabled = true; btn.textContent = 'テスト中…';
 
-  const use_ssl = document.querySelector('[name="ssl"]:checked').value === 'ssl';
+  const use_ssl   = document.querySelector('[name="ssl"]:checked').value === 'ssl';
   const ssl_verify = document.getElementById('ssl_verify').checked;
   const payload = {
     email_address: document.getElementById('email_address').value.trim(),
-    username: document.getElementById('username').value.trim() || document.getElementById('email_address').value.trim(),
-    password: document.getElementById('password').value,
-    imap_host: document.getElementById('imap_host').value.trim(),
-    imap_port: parseInt(document.getElementById('imap_port').value),
-    smtp_host: document.getElementById('smtp_host').value.trim(),
-    smtp_port: parseInt(document.getElementById('smtp_port').value),
-    use_ssl: use_ssl,
-    ssl_verify: ssl_verify,
+    username:      document.getElementById('username').value.trim() || document.getElementById('email_address').value.trim(),
+    password:      document.getElementById('password').value,
+    imap_host:     document.getElementById('imap_host').value.trim(),
+    imap_port:     parseInt(document.getElementById('imap_port').value),
+    smtp_host:     document.getElementById('smtp_host').value.trim(),
+    smtp_port:     parseInt(document.getElementById('smtp_port').value),
+    use_ssl, ssl_verify,
   };
 
-  // ローディング表示
   STEP_IDS.forEach((_, i) => updateStep(i, 'loading'));
 
   try {
-    const res = await fetch('/mail/api/test-connection/', {
+    const res  = await fetch('/mail/api/test-connection/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
 
-    if (!data.ok) {
-      STEP_IDS.forEach((_, i) => updateStep(i, 'fail', 'サーバーエラー'));
-      return;
-    }
+    if (!data.ok) { STEP_IDS.forEach((_, i) => updateStep(i, 'fail', 'サーバーエラー')); return; }
 
-    // 各ステップを順番に表示（アニメーション）
     let allOk = true;
     for (let i = 0; i < data.results.length; i++) {
       const r = data.results[i];
@@ -500,31 +584,18 @@ document.getElementById('btn-test-start').addEventListener('click', async () => 
       return;
     }
 
-    const hasCertificateError = data.results.some(result =>
-      !result.ok && String(result.error || '').includes('CERTIFICATE')
-    );
-    const hasDnsError = data.results.some(result =>
-      !result.ok && String(result.error || '').includes('getaddrinfo')
-    );
-
-    if (hasCertificateError) {
-      setTestHint('SSL証明書エラーです。ホスト名不一致の可能性があるので「SSL証明書を検証する」のチェックを外して再試行してください。');
-    } else if (hasDnsError) {
-      setTestHint('サーバー名を解決できませんでした。IMAP/SMTPホスト名が正しいか確認してください。');
-    } else {
-      setTestHint('接続テストに失敗しました。表示された失敗ステップの内容を確認してください。');
-    }
-  } catch (error) {
+    const hasCertErr = data.results.some(r => !r.ok && String(r.error || '').includes('CERTIFICATE'));
+    const hasDnsErr  = data.results.some(r => !r.ok && String(r.error || '').includes('getaddrinfo'));
+    if (hasCertErr)     setTestHint('SSL証明書エラーです。ホスト名不一致の可能性があるので「SSL証明書を検証する」のチェックを外して再試行してください。');
+    else if (hasDnsErr) setTestHint('サーバー名を解決できませんでした。IMAP/SMTPホスト名が正しいか確認してください。');
+    else                setTestHint('接続テストに失敗しました。表示された失敗ステップの内容を確認してください。');
+  } catch (e) {
     STEP_IDS.forEach((_, i) => updateStep(i, 'fail', 'ネットワークエラー'));
     setTestHint('通信に失敗しました。サーバー起動状態とネットワーク接続を確認してください。');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'テスト開始';
+    btn.disabled = false; btn.textContent = 'テスト開始';
   }
 });
-
-// 「登録する」は type="submit" のため、フォームがサーバー（setup_register/）へ POST される。
-// ここでは追加の JS 処理は不要。
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
