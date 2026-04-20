@@ -204,6 +204,8 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Tokyo'
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_RESULT_EXPIRES = 300
 
 # rediss://（TLS）使用時のSSL設定（Upstash等）
 if CELERY_BROKER_URL.startswith('rediss://'):
@@ -219,7 +221,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'check-classify-schedules': {
         'task': 'mailer.tasks.check_classify_schedules_task',
-        'schedule': crontab(minute='*'),  # 毎分チェック
+        'schedule': crontab(minute='*/5'),  # 5分ごとチェック
     },
 }
 CSRF_TRUSTED_ORIGINS = [
