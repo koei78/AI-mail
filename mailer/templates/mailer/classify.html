@@ -923,7 +923,7 @@ const WD_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
     opt.textContent = String(h).padStart(2, '0');
     hourSel.appendChild(opt);
   }
-  for (let m = 0; m < 60; m++) {
+  for (let m = 0; m < 60; m += 5) {
     const opt = document.createElement('option');
     opt.value = m;
     opt.textContent = String(m).padStart(2, '0');
