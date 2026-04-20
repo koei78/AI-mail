@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /accounts/login/
+Allow: /accounts/register/
+Allow: /privacy/
+Allow: /terms/
+Disallow: /mail/
+Disallow: /admin/
+Disallow: /mail/api/
+
+Sitemap: https://hayamail.jp/sitemap.xml
