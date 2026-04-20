@@ -221,7 +221,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'check-classify-schedules': {
         'task': 'mailer.tasks.check_classify_schedules_task',
-        'schedule': crontab(minute='*/5'),  # 5分ごとチェック
+        'schedule': crontab(minute='*/15'),  # 15分ごとチェック
     },
 }
 CSRF_TRUSTED_ORIGINS = [
