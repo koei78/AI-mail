@@ -234,7 +234,7 @@ CSRF_COOKIE_SECURE = True
 # =============================
 # メール送信設定（パスワードリセット用）
 # =============================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'accounts.email_backend.ProxySMTPEmailBackend'
 EMAIL_HOST = 'mail35.onamae.ne.jp'
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
