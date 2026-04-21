@@ -2014,8 +2014,8 @@ def api_classify_schedule(request):
             return _json_error('hour・minute は整数で指定してください')
         if not (0 <= hour <= 23):
             return _json_error('hour は 0〜23 で指定してください')
-        if not (0 <= minute <= 59):
-            return _json_error('minute は 0〜59 で指定してください')
+        if not (0 <= minute <= 59) or minute % 15 != 0:
+            return _json_error('minute は 0・15・30・45 で指定してください')
 
         raw_wd = body.get('weekdays', [])
         if not isinstance(raw_wd, list):
