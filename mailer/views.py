@@ -340,7 +340,7 @@ def api_account_sync(request, account_id):
 
 @login_required
 def api_folder_sync(request, folder_id):
-    """POST: フォルダ未読数を同期"""
+    """POST: フォルダのメールキャッシュを同期（新着取得）"""
     method_error = _require_method(request, 'POST')
     if method_error:
         return method_error
@@ -349,15 +349,12 @@ def api_folder_sync(request, folder_id):
     if isinstance(folder, JsonResponse):
         return folder
 
-    def _run():
-        try:
-            from .sync import sync_folder
-            sync_folder(folder.account.id, folder.id)
-        except Exception as exc:
-            logger.error('フォルダ同期エラー folder_id=%s: %s', folder_id, exc)
-
-    Thread(target=_run, daemon=True).start()
-    return _json_ok({'message': 'フォルダ同期を開始しました'})
+    try:
+        result = sync_emails_cache(folder)
+        return _json_ok({'added': result.get('added', 0), 'updated': result.get('updated', 0)})
+    except Exception as exc:
+        logger.error('フォルダ同期エラー folder_id=%s: %s', folder_id, exc)
+        return _json_error(str(exc), 500)
 
 
 # =============================
