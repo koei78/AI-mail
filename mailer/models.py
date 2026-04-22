@@ -116,7 +116,7 @@ class MailFolder(models.Model):
         ('sent', '送信済み'),
         ('draft', '下書き'),
         ('trash', 'ゴミ箱'),
-        ('spam', 'スパム'),
+        ('spam', '迷惑メール'),
         ('custom', 'カスタム'),
     ]
 

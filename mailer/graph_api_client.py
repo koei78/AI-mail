@@ -36,7 +36,7 @@ _WELL_KNOWN_FOLDER_MAP = {
     'sentitems':    ('送信済み',   'sent'),
     'drafts':       ('下書き',     'draft'),
     'deleteditems': ('ゴミ箱',     'trash'),
-    'junkemail':    ('スパム',     'spam'),
+    'junkemail':    ('迷惑メール', 'spam'),
     'outbox':       ('送信トレイ', 'custom'),
     'archive':      ('アーカイブ', 'custom'),
 }

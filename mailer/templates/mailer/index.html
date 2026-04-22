@@ -2612,45 +2612,55 @@ $('forward-files').addEventListener('change', () => updateFileNames('forward-fil
 
   if (!initAccounts.length) return;
 
-  const acc = initAccounts[0];
+  const _savedId = localStorage.getItem('selectedAccountId');
+  const acc = (_savedId && initAccounts.find(a => a.id === parseInt(_savedId))) || initAccounts[0];
   S.curAccount = acc;
   $('account-email-label').textContent = acc.email_address;
   const av = $('account-avatar');
   av.textContent = avatarInitial(acc.email_address);
   av.style.background = avatarColor(acc.email_address);
-
-  S.folders = initFolders;
-
-  const inbox = initFolders.find(f => f.id === initFolderId) || initFolders[0];
-  if (!inbox) { renderFolders(); return; }
-
-  // フォルダを選択してIMAP経由でメール一覧を取得
-  selectFolder(inbox);
+  localStorage.setItem('selectedAccountId', String(acc.id));
 
   // AI分類ページからの遷移: URLパラメータでメールを自動で開いて返信モーダルを起動
   const _qp = new URLSearchParams(window.location.search);
   const _autoUid = parseInt(_qp.get('auto_open_uid'));
   const _autoFolderId = parseInt(_qp.get('auto_open_folder'));
   const _autoAction = _qp.get('auto_action');
-  if (_autoUid && _autoFolderId) {
-    const _targetFolder = initFolders.find(f => f.id === _autoFolderId);
-    if (_targetFolder) {
-      selectFolder(_targetFolder);
-      // メール一覧が読み込まれた後に対象メールを開く
-      const _waitId = setInterval(() => {
-        const _em = S.emails.find(e => e.uid === _autoUid);
-        if (_em) {
-          clearInterval(_waitId);
-          openMail(_autoUid);
-          if (_autoAction === 'reply') {
-            setTimeout(() => {
-              const replyBtn = document.getElementById('btn-reply');
-              if (replyBtn) replyBtn.click();
-            }, 600);
-          }
+
+  function _doAutoOpen() {
+    if (!_autoUid || !_autoFolderId) return;
+    const _targetFolder = S.folders.find(f => f.id === _autoFolderId);
+    if (!_targetFolder) return;
+    selectFolder(_targetFolder);
+    const _waitId = setInterval(() => {
+      const _em = S.emails.find(e => e.uid === _autoUid);
+      if (_em) {
+        clearInterval(_waitId);
+        openMail(_autoUid);
+        if (_autoAction === 'reply') {
+          setTimeout(() => {
+            const replyBtn = document.getElementById('btn-reply');
+            if (replyBtn) replyBtn.click();
+          }, 600);
         }
-      }, 300);
-      setTimeout(() => clearInterval(_waitId), 15000);
+      }
+    }, 300);
+    setTimeout(() => clearInterval(_waitId), 15000);
+  }
+
+  if (acc.id !== initAccounts[0].id) {
+    // 先頭以外のアカウント → APIでそのアカウントのフォルダを取得
+    loadFolders().then(_doAutoOpen);
+    loadFriends(acc.id);
+  } else {
+    // 先頭アカウント → サーバー事前レンダリングのフォルダをそのまま使用（高速）
+    S.folders = initFolders;
+    const inbox = initFolders.find(f => f.id === initFolderId) || initFolders[0];
+    if (!inbox) { renderFolders(); return; }
+    if (_autoUid && _autoFolderId) {
+      _doAutoOpen();
+    } else {
+      selectFolder(inbox);
     }
   }
 })();

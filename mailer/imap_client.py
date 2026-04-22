@@ -402,7 +402,7 @@ class MailClient:
                 'sent': '送信済み',
                 'draft': '下書き',
                 'trash': 'ゴミ箱',
-                'spam': 'スパム',
+                'spam': '迷惑メール',
             }.get(folder_type, remote_name)
             folders.append({
                 'name': display_name,
