@@ -1,6 +1,7 @@
 """メールクライアントのページ表示と JSON API。
 メール本文はIMAPサーバーから直接取得する（DBキャッシュなし）。
 """
+import datetime
 import json
 import logging
 from threading import Thread
@@ -71,6 +72,11 @@ class MailIndexView(LoginRequiredMixin, TemplateView):
 
         labels = list(Label.objects.filter(user=self.request.user))
         ctx['labels_json'] = json.dumps([_serialize_label(l) for l in labels])
+
+        from django.utils import timezone
+        ctx['is_new_user'] = (
+            timezone.now() - self.request.user.date_joined < datetime.timedelta(hours=24)
+        )
         return ctx
 
 

@@ -854,6 +854,97 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
   .dt-btn span{display:none}
   .dt-btn svg{margin:0}
 }
+
+/* ===== チュートリアル ===== */
+@keyframes tut-in {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tut-spotlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(0,0,0,.55), 0 0 0 3px rgba(255,255,255,.9); }
+  50%       { box-shadow: 0 0 0 9999px rgba(0,0,0,.55), 0 0 0 5px rgba(0,120,212,.8); }
+}
+@keyframes tut-confetti-fall {
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(90px) rotate(360deg); opacity: 0; }
+}
+.tut-spotlight-clone {
+  position: fixed; z-index: 902; pointer-events: none;
+  border-radius: 6px;
+  animation: tut-spotlight-pulse 2s ease-in-out infinite;
+}
+.tut-spotlight-direct {
+  position: relative; z-index: 902 !important; border-radius: 6px;
+  animation: tut-spotlight-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+#tut-overlay {
+  position: fixed; inset: 0; z-index: 900; display: none;
+}
+#tut-overlay.active { display: block; }
+#tut-tooltip {
+  position: fixed; background: #fff; border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18), 0 1.6px 4px rgba(0,0,0,.08);
+  width: 320px; max-width: calc(100vw - 24px);
+  z-index: 903; display: none; flex-direction: column;
+  border: 1px solid var(--border); overflow: hidden;
+}
+#tut-tooltip.active { display: flex; animation: tut-in .2s ease; }
+#tut-tooltip.placement-center {
+  width: 420px;
+  top: 50% !important; left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+#tut-tooltip::before {
+  content: ''; position: absolute; border: 9px solid transparent;
+}
+#tut-tooltip[data-placement="right"]::before {
+  left: -18px; top: 50%; transform: translateY(-50%);
+  border-right-color: #fff;
+}
+#tut-tooltip[data-placement="bottom-left"]::before {
+  top: -18px; right: 28px; border-bottom-color: #fff;
+}
+.tut-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--border); transition: background .2s, opacity .2s;
+  flex-shrink: 0;
+}
+.tut-dot.active { background: var(--blue); }
+.tut-dot.done   { background: var(--blue); opacity: .4; }
+#tut-progress { transition: width .3s ease; }
+.tut-footer {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 18px 16px; border-top: 1px solid var(--border); margin-top: 14px;
+}
+.tut-next {
+  padding: 6px 16px; background: var(--blue); color: #fff;
+  border: none; border-radius: var(--radius); font-size: .82rem; font-weight: 600;
+  cursor: pointer; transition: background .12s;
+}
+.tut-next:hover { background: #106ebe; }
+.tut-prev {
+  padding: 6px 12px; background: transparent; border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: .82rem;
+  cursor: pointer; color: var(--text-sub); transition: background .12s;
+}
+.tut-prev:hover { background: var(--hover); }
+.tut-skip {
+  font-size: .78rem; color: var(--text-light); background: none; border: none;
+  cursor: pointer; padding: 0; text-decoration: underline; transition: color .12s;
+}
+.tut-skip:hover { color: var(--text-sub); }
+#tut-confetti-wrap {
+  position: fixed; inset: 0; pointer-events: none;
+  z-index: 905; display: none; overflow: hidden;
+}
+@media (max-width: 768px) {
+  #tut-tooltip, #tut-tooltip.placement-center {
+    width: calc(100vw - 24px) !important;
+    left: 12px !important; right: auto !important;
+    transform: none !important; top: auto !important; bottom: 72px;
+  }
+}
 </style>
 </head>
 <body>
@@ -909,7 +1000,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;font-siz
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       新規メール
     </button>
-    <a href="/mail/classify/" class="classify-page-link" style="display:flex;align-items:center;gap:7px;margin:0 10px 4px;padding:7px 12px;border-radius:4px;background:linear-gradient(135deg,#eff6fc,#deecf9);border:1px solid #b3d6f5;color:#0078d4;font-size:.8rem;font-weight:600;text-decoration:none;width:calc(100% - 20px);box-sizing:border-box;transition:opacity .12s">
+    <a href="/mail/classify/" id="classify-page-link" class="classify-page-link" style="display:flex;align-items:center;gap:7px;margin:0 10px 4px;padding:7px 12px;border-radius:4px;background:linear-gradient(135deg,#eff6fc,#deecf9);border:1px solid #b3d6f5;color:#0078d4;font-size:.8rem;font-weight:600;text-decoration:none;width:calc(100% - 20px);box-sizing:border-box;transition:opacity .12s">
       <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       AI メール分類
     </a>
@@ -2521,6 +2612,7 @@ $('forward-files').addEventListener('change', () => updateFileNames('forward-fil
       setTimeout(() => clearInterval(_waitId), 15000);
     }
   }
+  window._serverInitDone = true;
 })();
 
 
@@ -2787,6 +2879,216 @@ $('bn-sync').addEventListener('click', () => {
   closeSidebarMobile();
   $('btn-sync-top').click();
 });
+
+// =============================================
+// チュートリアル
+// =============================================
+(function() {
+  const TUT_KEY = 'hayamail_tut_done';
+  const IS_NEW_USER = {{ is_new_user|lower }};
+
+  const STEPS = [
+    { slideId: 'welcome',  targetId: null,                  placement: 'center'                     },
+    { slideId: 'accounts', targetId: 'account-toggle-btn',  placement: 'bottom-left', useClone: false },
+    { slideId: 'classify', targetId: 'classify-page-link',  placement: 'right',       useClone: true  },
+    { slideId: 'schedule', targetId: 'btn-settings',        placement: 'right',       useClone: true  },
+    { slideId: 'ai-chat',  targetId: null,                  placement: 'center'                     },
+    { slideId: 'friends',  targetId: 'friends-page-link',   placement: 'right',       useClone: true  },
+    { slideId: 'finish',   targetId: null,                  placement: 'center'                     },
+  ];
+
+  let curStep = 0;
+
+  function shouldShow() {
+    try { if (localStorage.getItem(TUT_KEY)) return false; } catch(e) { return false; }
+    return IS_NEW_USER;
+  }
+
+  function tutStart() {
+    curStep = 0;
+    document.getElementById('tut-overlay').classList.add('active');
+    renderStep(0);
+    document.getElementById('tut-tooltip').classList.add('active');
+  }
+  window.tutStart = tutStart;
+
+  function tutFinish() {
+    try { localStorage.setItem(TUT_KEY, '1'); } catch(e) {}
+    teardown();
+    launchConfetti();
+  }
+
+  function teardown() {
+    document.getElementById('tut-overlay').classList.remove('active');
+    const tooltip = document.getElementById('tut-tooltip');
+    tooltip.className = '';
+    removeSpotlight();
+  }
+
+  function renderStep(idx) {
+    const step = STEPS[idx];
+
+    document.querySelectorAll('.tut-slide').forEach(s => s.style.display = 'none');
+    const slide = document.getElementById('tut-slide-' + step.slideId);
+    if (slide) slide.style.display = '';
+
+    renderDots(idx);
+    const pct = (idx / (STEPS.length - 1)) * 100;
+    document.getElementById('tut-progress').style.width = pct + '%';
+
+    removeSpotlight();
+
+    const tooltip = document.getElementById('tut-tooltip');
+    tooltip.className = 'active';
+    tooltip.removeAttribute('data-placement');
+    void tooltip.offsetWidth;
+
+    if (!step.targetId) {
+      tooltip.classList.add('placement-center');
+      tooltip.style.top = '';
+      tooltip.style.left = '';
+      return;
+    }
+
+    const el = document.getElementById(step.targetId);
+    if (!el) { tooltip.classList.add('placement-center'); return; }
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) { tooltip.classList.add('placement-center'); return; }
+
+    if (step.useClone) {
+      createSpotlightClone(rect);
+    } else {
+      el.classList.add('tut-spotlight-direct');
+    }
+
+    positionTooltip(step, rect, tooltip);
+  }
+
+  function createSpotlightClone(rect) {
+    const clone = document.createElement('div');
+    clone.id = 'tut-spotlight-clone';
+    clone.className = 'tut-spotlight-clone';
+    clone.style.top    = rect.top    + 'px';
+    clone.style.left   = rect.left   + 'px';
+    clone.style.width  = rect.width  + 'px';
+    clone.style.height = rect.height + 'px';
+    document.body.appendChild(clone);
+  }
+
+  function removeSpotlight() {
+    const clone = document.getElementById('tut-spotlight-clone');
+    if (clone) clone.remove();
+    document.querySelectorAll('.tut-spotlight-direct').forEach(el => {
+      el.classList.remove('tut-spotlight-direct');
+    });
+  }
+
+  function positionTooltip(step, rect, tooltip) {
+    tooltip.dataset.placement = step.placement;
+    const tw = tooltip.offsetWidth || 320;
+    const th = tooltip.offsetHeight || 240;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 14;
+    let top, left;
+
+    if (step.placement === 'bottom-left') {
+      top  = rect.bottom + gap;
+      left = rect.right  - tw;
+    } else {
+      top  = rect.top + rect.height / 2 - th / 2;
+      left = rect.right + gap;
+    }
+
+    left = Math.max(8, Math.min(left, vw - tw - 8));
+    top  = Math.max(8, Math.min(top,  vh - th - 8));
+    tooltip.style.top  = top  + 'px';
+    tooltip.style.left = left + 'px';
+  }
+
+  function renderDots(idx) {
+    const wrap = document.getElementById('tut-dots');
+    wrap.innerHTML = STEPS.map((_, i) => {
+      const cls = i < idx ? 'done' : i === idx ? 'active' : '';
+      return `<div class="tut-dot ${cls}"></div>`;
+    }).join('');
+  }
+
+  function launchConfetti() {
+    const wrap = document.getElementById('tut-confetti-wrap');
+    wrap.style.display = 'block';
+    const COLORS = ['#0078d4','#107c10','#8764b8','#c43e1c','#f2c94c','#00b4d8'];
+    for (let i = 0; i < 54; i++) {
+      const p = document.createElement('div');
+      const isCircle = (i % 3 === 0);
+      p.style.cssText =
+        'position:absolute;' +
+        'left:' + (Math.random() * 100) + '%;' +
+        'top:' + (-10 - Math.random() * 40) + 'px;' +
+        'width:' + (7 + Math.random() * 7) + 'px;' +
+        'height:' + (7 + Math.random() * 7) + 'px;' +
+        'border-radius:' + (isCircle ? '50%' : '2px') + ';' +
+        'background:' + COLORS[i % COLORS.length] + ';' +
+        'animation:tut-confetti-fall ' + (0.7 + Math.random() * 0.7) + 's ease-out ' + (Math.random() * 0.6) + 's forwards;';
+      wrap.appendChild(p);
+    }
+    setTimeout(() => { wrap.style.display = 'none'; wrap.innerHTML = ''; }, 2200);
+  }
+
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    // 設定モーダルの「ガイドを表示」ボタン（チュートリアル未起動状態でも動作させる）
+    if (btn.id === 'btn-restart-tutorial') {
+      try { localStorage.removeItem(TUT_KEY); } catch(e) {}
+      closeSettings();
+      setTimeout(tutStart, 300);
+      return;
+    }
+
+    const tooltip = document.getElementById('tut-tooltip');
+    if (!tooltip || !tooltip.classList.contains('active')) return;
+
+    if (btn.id === 'tut-finish-btn') { tutFinish(); return; }
+    if (btn.classList.contains('tut-skip')) { tutFinish(); return; }
+    if (btn.classList.contains('tut-prev')) {
+      if (curStep > 0) { curStep--; renderStep(curStep); }
+      return;
+    }
+    if (btn.classList.contains('tut-next')) {
+      if (curStep < STEPS.length - 1) { curStep++; renderStep(curStep); }
+    }
+  });
+
+  let _resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(function() {
+      const tooltip = document.getElementById('tut-tooltip');
+      if (!tooltip || !tooltip.classList.contains('active')) return;
+      const step = STEPS[curStep];
+      if (!step.targetId) return;
+      const el = document.getElementById(step.targetId);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (!rect.width) return;
+      removeSpotlight();
+      if (step.useClone) { createSpotlightClone(rect); } else { el.classList.add('tut-spotlight-direct'); }
+      positionTooltip(step, rect, tooltip);
+    }, 150);
+  });
+
+  function waitForInit(cb) {
+    if (window._serverInitDone) { cb(); return; }
+    const tid = setInterval(function() {
+      if (window._serverInitDone) { clearInterval(tid); cb(); }
+    }, 100);
+    setTimeout(function() { clearInterval(tid); }, 5000);
+  }
+
+  if (shouldShow()) waitForInit(function() { setTimeout(tutStart, 400); });
+})();
 </script>
 
 <!-- ===== 設定モーダル ===== -->
@@ -2805,6 +3107,10 @@ $('bn-sync').addEventListener('click', () => {
 
       <!-- アカウントタブ -->
       <div class="settings-pane active" id="stab-accounts">
+        <div style="margin-bottom:14px;padding:10px 12px;border-radius:var(--radius);background:#eff6fc;border:1px solid #b3d6f5;display:flex;align-items:center;gap:10px">
+          <span style="flex:1;font-size:.82rem;color:var(--text-sub)">使い方ガイドをいつでも再表示できます</span>
+          <button id="btn-restart-tutorial" style="padding:5px 12px;background:var(--blue);color:#fff;border:none;border-radius:var(--radius);font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">ガイドを表示</button>
+        </div>
         <div class="stg-section-title">メールアカウント</div>
         <div id="stg-account-list"></div>
         <a href="/mail/setup/" class="stg-add-account-btn">
@@ -2878,5 +3184,222 @@ $('bn-sync').addEventListener('click', () => {
     </div>
   </div>
 </div>
+
+<!-- ===== チュートリアル ===== -->
+<div id="tut-overlay"></div>
+<div id="tut-confetti-wrap"></div>
+
+<div id="tut-tooltip">
+  <div id="tut-dots" style="display:flex;gap:5px;justify-content:center;padding:14px 0 0"></div>
+  <div style="height:3px;background:var(--border);margin:8px 18px 0;border-radius:2px;overflow:hidden">
+    <div id="tut-progress" style="height:100%;background:linear-gradient(90deg,var(--blue),#5ea3ff);border-radius:2px;width:0"></div>
+  </div>
+
+  <!-- Step 0: Welcome -->
+  <div class="tut-slide" id="tut-slide-welcome">
+    <div style="padding:24px 20px 0;text-align:center">
+      <div style="display:flex;justify-content:center;margin-bottom:14px">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="m2 7 10 7 10-7"/>
+        </svg>
+      </div>
+      <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:8px">はやメールへようこそ！</div>
+      <div style="font-size:.84rem;color:var(--text-sub);line-height:1.7">
+        AIを活用したメール管理を一緒に学びましょう。<br>
+        5つの主要機能を約1分でご紹介します。
+      </div>
+    </div>
+    <div class="tut-footer">
+      <button class="tut-skip">スキップ</button>
+      <div style="flex:1"></div>
+      <button class="tut-next">はじめる</button>
+    </div>
+  </div>
+
+  <!-- Step 1: アカウント切り替え -->
+  <div class="tut-slide" id="tut-slide-accounts" style="display:none">
+    <div style="padding:20px 18px 0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M2 21c0-4 3.1-7 7-7s7 3 7 7"/>
+          <circle cx="19" cy="8" r="3"/>
+          <path d="M22 20c0-2.8-1.8-5-4.3-5.6"/>
+        </svg>
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">複数アカウントを切り替える</div>
+      </div>
+      <div style="font-size:.83rem;color:var(--text-sub);line-height:1.75">
+        右上のアカウントボタンをクリックすると、連携済みのメールアカウントを一覧表示します。<br><br>
+        Gmail・Outlook・独自ドメインのアカウントを瞬時に切り替えられます。設定からアカウントを追加できます。
+      </div>
+    </div>
+    <div class="tut-footer">
+      <button class="tut-skip">スキップ</button>
+      <div style="flex:1"></div>
+      <button class="tut-prev">戻る</button>
+      <button class="tut-next">次へ</button>
+    </div>
+  </div>
+
+  <!-- Step 2: AI仕分け -->
+  <div class="tut-slide" id="tut-slide-classify" style="display:none">
+    <div style="padding:20px 18px 0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">AIがメールを3段階に仕分け</div>
+      </div>
+      <div style="font-size:.83rem;color:var(--text-sub);line-height:1.7;margin-bottom:10px">
+        「AIメール分類」から受信メールを自動仕分けできます。
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="background:#fde7e9;color:#c50f1f;font-weight:700;padding:2px 9px;border-radius:3px;font-size:.74rem;flex-shrink:0">A 緊急</span>
+          <span style="font-size:.82rem;color:var(--text-sub)">即対応が必要なメール</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="background:#fff4ce;color:#835c00;font-weight:700;padding:2px 9px;border-radius:3px;font-size:.74rem;flex-shrink:0">B 重要</span>
+          <span style="font-size:.82rem;color:var(--text-sub)">確認しておくべきメール</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="background:#dff6dd;color:#107c10;font-weight:700;padding:2px 9px;border-radius:3px;font-size:.74rem;flex-shrink:0">C 通常</span>
+          <span style="font-size:.82rem;color:var(--text-sub)">通知・広告など</span>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:.8rem;color:var(--text-light)">大量のメールも数秒で整理完了します。</div>
+    </div>
+    <div class="tut-footer">
+      <button class="tut-skip">スキップ</button>
+      <div style="flex:1"></div>
+      <button class="tut-prev">戻る</button>
+      <button class="tut-next">次へ</button>
+    </div>
+  </div>
+
+  <!-- Step 3: スケジュール -->
+  <div class="tut-slide" id="tut-slide-schedule" style="display:none">
+    <div style="padding:20px 18px 0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <path d="M16 2v4M8 2v4M3 10h18"/>
+          <rect x="7" y="14" width="2" height="2" rx=".4" fill="#0078d4" stroke="none"/>
+          <rect x="11" y="14" width="2" height="2" rx=".4" fill="#0078d4" stroke="none"/>
+          <rect x="7" y="18" width="2" height="2" rx=".4" fill="#0078d4" stroke="none"/>
+        </svg>
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">決まった時間に自動で分類</div>
+      </div>
+      <div style="font-size:.83rem;color:var(--text-sub);line-height:1.75;margin-bottom:10px">
+        設定の「AIスケジュール」タブから、分類を自動実行する時間と曜日を指定できます。
+      </div>
+      <div style="padding:10px 12px;background:var(--hover);border-radius:6px;border-left:3px solid var(--blue);display:flex;gap:8px;align-items:flex-start">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 16v-4M12 8h.01"/>
+        </svg>
+        <span style="font-size:.82rem;color:var(--text-sub)">「毎朝8時・平日のみ」に設定すると、出社前に整理済みの受信トレイが待っています。</span>
+      </div>
+    </div>
+    <div class="tut-footer">
+      <button class="tut-skip">スキップ</button>
+      <div style="flex:1"></div>
+      <button class="tut-prev">戻る</button>
+      <button class="tut-next">次へ</button>
+    </div>
+  </div>
+
+  <!-- Step 4: AIチャット -->
+  <div class="tut-slide" id="tut-slide-ai-chat" style="display:none">
+    <div style="padding:20px 18px 0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <path d="M9 10h6M9 14h4"/>
+        </svg>
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">メールをAIと一緒に処理</div>
+      </div>
+      <div style="font-size:.83rem;color:var(--text-sub);line-height:1.7;margin-bottom:10px">
+        メールを開くと右側にAIチャットパネルが表示されます。自然な言葉で話しかけてみてください：
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 10px;background:var(--hover);border-radius:5px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style="font-size:.81rem;color:var(--text-sub)">「この件を3行で要約して」</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 10px;background:var(--hover);border-radius:5px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style="font-size:.81rem;color:var(--text-sub)">「丁寧な断り文を書いて」</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;padding:6px 10px;background:var(--hover);border-radius:5px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style="font-size:.81rem;color:var(--text-sub)">「次のアクションは何がいい？」</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:.8rem;color:var(--text-light)">返信提案ボタンからワンタッチでAI提案も受け取れます。</div>
+    </div>
+    <div class="tut-footer">
+      <button class="tut-skip">スキップ</button>
+      <div style="flex:1"></div>
+      <button class="tut-prev">戻る</button>
+      <button class="tut-next">次へ</button>
+    </div>
+  </div>
+
+  <!-- Step 5: 友達チャット -->
+  <div class="tut-slide" id="tut-slide-friends" style="display:none">
+    <div style="padding:20px 18px 0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <div style="font-size:.95rem;font-weight:700;color:var(--text)">連絡先とダイレクトチャット</div>
+      </div>
+      <div style="font-size:.83rem;color:var(--text-sub);line-height:1.75">
+        「友達」ページでは、アドレス帳の連絡先とメッセージをやり取りできます。<br><br>
+        メールほど堅くなく、LINEより仕事向けのちょうどいいコミュニケーションツールとして使えます。
+      </div>
+    </div>
+    <div class="tut-footer">
+      <button class="tut-skip">スキップ</button>
+      <div style="flex:1"></div>
+      <button class="tut-prev">戻る</button>
+      <button class="tut-next">次へ</button>
+    </div>
+  </div>
+
+  <!-- Step 6: 完了 -->
+  <div class="tut-slide" id="tut-slide-finish" style="display:none">
+    <div style="padding:24px 20px 0;text-align:center">
+      <div style="display:flex;justify-content:center;margin-bottom:14px">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#107c10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="m8 12 3 3 5-6"/>
+        </svg>
+      </div>
+      <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:8px">準備完了！</div>
+      <div style="font-size:.84rem;color:var(--text-sub);line-height:1.7">
+        主要機能のご紹介は以上です。<br>
+        困ったときは設定の「ガイドを表示」から<br>
+        いつでも確認できます。<br><br>
+        それでは、はやメールをお楽しみください。
+      </div>
+    </div>
+    <div class="tut-footer" style="justify-content:center">
+      <button class="tut-next" id="tut-finish-btn" style="padding:8px 28px;font-size:.88rem">メールを始める</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
