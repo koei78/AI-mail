@@ -48,8 +48,26 @@ _HIDE_REMOTE_NAMES = {
 
 def _filter_and_sort_folders(folders):
     visible = [f for f in folders if f.remote_name.lower() not in _HIDE_REMOTE_NAMES]
-    visible.sort(key=lambda f: (_FOLDER_TYPE_ORDER.get(f.folder_type, 99), f.name))
-    return visible
+
+    # 同じ folder_type（inbox/sent/draft/trash/spam）が複数ある場合は1つに絞る。
+    # 未読数が多い方（=実際のIMAPフォルダ）を優先し、同数なら先に同期された方を残す。
+    standard_best: dict = {}
+    custom_list: list = []
+    for f in visible:
+        if f.folder_type == 'custom':
+            custom_list.append(f)
+            continue
+        existing = standard_best.get(f.folder_type)
+        if existing is None:
+            standard_best[f.folder_type] = f
+        elif f.unread_count > existing.unread_count or (
+            f.unread_count == existing.unread_count and f.id < existing.id
+        ):
+            standard_best[f.folder_type] = f
+
+    standard = sorted(standard_best.values(), key=lambda f: _FOLDER_TYPE_ORDER.get(f.folder_type, 99))
+    custom_list.sort(key=lambda f: f.name)
+    return standard + custom_list
 
 
 # =============================
