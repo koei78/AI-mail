@@ -394,7 +394,14 @@ tr.expanded .row-expand-inner{
   box-sizing:border-box;
 }
 .mmr-footer{display:flex;align-items:center;gap:8px;margin-top:8px}
-.mmr-file-label{cursor:pointer;font-size:.82rem;color:var(--text-sub)}
+.mmr-file-label{
+  display:inline-flex;align-items:center;gap:4px;
+  cursor:pointer;font-size:.8rem;color:var(--text-sub);
+  border:1px solid var(--border);background:#fff;
+  padding:4px 10px;border-radius:var(--radius);
+  transition:background .12s;white-space:nowrap;
+}
+.mmr-file-label:hover{background:var(--hover)}
 .mmr-file-label input{display:none}
 #mm-reply-file-names{
   flex:1;font-size:.75rem;color:var(--text-sub);
@@ -428,13 +435,33 @@ tr.expanded .row-expand-inner{
   display:flex;flex-direction:column;gap:8px;
 }
 .mm-ai-msg{
-  padding:8px 10px;border-radius:8px;font-size:.82rem;
-  line-height:1.5;white-space:pre-wrap;word-break:break-word;
+  max-width:88%;padding:7px 10px;border-radius:10px;
+  font-size:.78rem;line-height:1.55;word-break:break-word;white-space:pre-wrap;
 }
-.mm-ai-msg.user{background:var(--blue-light);align-self:flex-end;max-width:90%}
-.mm-ai-msg.ai{background:#f0ebf8}
-.mm-ai-msg.reply{background:#e8f5e9}
-.mm-ai-msg.question{background:#fff3e0}
+.mm-ai-msg.user{
+  align-self:flex-end;background:var(--blue);color:#fff;
+  border-bottom-right-radius:3px;
+}
+.mm-ai-msg.ai{
+  align-self:flex-start;background:#fff;color:var(--text);
+  border:1px solid var(--border);border-bottom-left-radius:3px;
+}
+.mm-ai-msg.reply{
+  align-self:flex-start;background:#e8f5e9;color:var(--text);
+  border:1px solid #a5d6a7;border-bottom-left-radius:3px;
+}
+.mm-ai-msg.thinking{
+  align-self:flex-start;color:var(--text-light);font-style:italic;
+  background:transparent;border:none;font-size:.74rem;
+}
+.mm-ai-msg.question{
+  align-self:flex-start;
+  background:#fff8e1;border:1px solid #f0c040;color:#7a5800;
+}
+.mm-ai-msg.question::before{
+  content:'❓ 確認事項';display:block;font-size:.7rem;font-weight:700;
+  color:#b88a00;margin-bottom:4px;letter-spacing:.03em;
+}
 .mm-ai-input-wrap{
   border-top:1px solid var(--border);padding:8px 10px;flex-shrink:0;
 }
@@ -450,6 +477,14 @@ tr.expanded .row-expand-inner{
 }
 #mm-ai-send-btn{background:#8764b8;color:#fff;border-color:#8764b8;font-weight:600}
 #mm-ai-send-btn:disabled{opacity:.6;cursor:default}
+.ai-use-btn{
+  display:inline-block;margin-top:6px;
+  padding:3px 10px;background:var(--blue-bg);
+  border:1px solid var(--blue);border-radius:var(--radius);
+  color:var(--blue);font-size:.72rem;cursor:pointer;
+  transition:background .12s;
+}
+.ai-use-btn:hover{background:var(--blue-light)}
 </style>
 </head>
 <body>
@@ -688,7 +723,7 @@ tr.expanded .row-expand-inner{
         <div id="mm-iframe-wrap">
           <iframe id="mm-iframe" sandbox="allow-same-origin allow-popups"></iframe>
         </div>
-        <div id="mm-reply-wrap" style="display:none">
+        <div id="mm-reply-wrap">
           <div class="mmr-header">
             <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
             返信
@@ -696,7 +731,9 @@ tr.expanded .row-expand-inner{
           <div id="mm-reply-to"></div>
           <textarea id="mm-reply-body" placeholder="返信を入力..."></textarea>
           <div class="mmr-footer">
-            <label class="mmr-file-label">📎
+            <label class="mmr-file-label">
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              添付ファイルを追加
               <input type="file" id="mm-reply-files" multiple>
             </label>
             <span id="mm-reply-file-names"></span>
@@ -705,7 +742,7 @@ tr.expanded .row-expand-inner{
           </div>
         </div>
       </div>
-      <div id="mm-ai-panel" style="display:none">
+      <div id="mm-ai-panel">
         <div class="mm-ai-hdr">
           <span>
             <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
@@ -1231,15 +1268,17 @@ async function openMailModal(uid, folderId, subject, sender) {
 
   document.getElementById('mm-subject-text').textContent = subject || '(件名なし)';
   document.getElementById('mm-reply-to').textContent = '返信先: ' + (sender || '');
-  document.getElementById('mm-reply-wrap').style.display = 'none';
   document.getElementById('mm-reply-body').value = '';
   document.getElementById('mm-reply-files').value = '';
   document.getElementById('mm-reply-file-names').textContent = '';
-  document.getElementById('mm-ai-panel').style.display = 'none';
+  document.getElementById('mm-ai-panel').style.display = 'flex';
   document.getElementById('mm-meta').textContent = '読み込み中...';
   document.getElementById('mm-iframe').src = 'about:blank';
   document.getElementById('mail-modal').classList.add('open');
   mmAiClear();
+  // モーダルを開いたら自動的にAI返信提案を開始
+  document.getElementById('mm-ai-input').value = 'このメールへの返信文を提案してください。';
+  mmAiSend();
 
   try {
     const r = await fetch(`/mail/api/emails/${uid}/?folder_id=${folderId}`);
@@ -1267,14 +1306,14 @@ function closeMailModal() {
 }
 
 document.getElementById('mm-btn-reply').addEventListener('click', () => {
-  const w = document.getElementById('mm-reply-wrap');
-  const isHidden = w.style.display === 'none';
-  w.style.display = isHidden ? 'block' : 'none';
-  if (isHidden) document.getElementById('mm-reply-body').focus();
+  document.getElementById('mm-reply-body').focus();
+  document.getElementById('mm-reply-body').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
 document.getElementById('mm-reply-cancel').addEventListener('click', () => {
-  document.getElementById('mm-reply-wrap').style.display = 'none';
+  document.getElementById('mm-reply-body').value = '';
+  document.getElementById('mm-reply-files').value = '';
+  document.getElementById('mm-reply-file-names').textContent = '';
 });
 
 document.getElementById('mm-reply-files').addEventListener('change', function() {
@@ -1305,13 +1344,8 @@ document.getElementById('mm-reply-send').addEventListener('click', async () => {
 });
 
 document.getElementById('mm-btn-ai').addEventListener('click', () => {
-  const panel = document.getElementById('mm-ai-panel');
-  const isHidden = panel.style.display === 'none';
-  panel.style.display = isHidden ? 'flex' : 'none';
-  if (isHidden) {
-    document.getElementById('mm-ai-input').value = 'このメールへの返信文を提案してください。';
-    mmAiSend();
-  }
+  document.getElementById('mm-ai-panel').style.display = 'flex';
+  document.getElementById('mm-ai-input').focus();
 });
 
 document.getElementById('mm-ai-close').addEventListener('click', () => {
@@ -1330,15 +1364,60 @@ function mmAiClear() {
     '<div class="mm-ai-msg ai">このメールについて何でも質問してください。<br>「返信文を書いて」と入力すると、一緒に返信を作ります。</div>';
 }
 
-function mmAiAppend(role, text, msgType) {
+function extractBetweenDashes(text) {
+  const parts = text.split(/^[- ]{3,}\s*$/m);
+  if (parts.length >= 3) return parts[1].trim();
+  if (parts.length === 2) return parts[1].trim() || parts[0].trim();
+  return text.trim();
+}
+
+function mmAiAppend(role, text, isError = false, msgType = 'reply') {
   const msgs = document.getElementById('mm-ai-messages');
   const div = document.createElement('div');
-  if (role === 'user') div.className = 'mm-ai-msg user';
-  else if (msgType === 'question') div.className = 'mm-ai-msg question';
-  else div.className = 'mm-ai-msg reply';
-  div.innerHTML = esc(text).replace(/\n/g, '<br>');
+  if (role === 'user') {
+    div.className = 'mm-ai-msg user';
+  } else if (isError) {
+    div.className = 'mm-ai-msg ai';
+  } else if (msgType === 'question') {
+    div.className = 'mm-ai-msg question';
+  } else if (msgType === 'reply') {
+    div.className = 'mm-ai-msg reply';
+  } else {
+    div.className = 'mm-ai-msg ai';
+  }
+  div.textContent = text;
+
+  if (role === 'assistant' && !isError && msgType === 'reply') {
+    const useBtn = document.createElement('div');
+    useBtn.className = 'ai-use-btn';
+    useBtn.textContent = 'この返信を使う';
+    useBtn.addEventListener('click', () => {
+      document.getElementById('mm-reply-body').value = extractBetweenDashes(text);
+      document.getElementById('mm-reply-body').focus();
+      document.getElementById('mm-reply-body').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      toast('返信エリアに挿入しました', 'info');
+    });
+    div.appendChild(document.createElement('br'));
+    div.appendChild(useBtn);
+  }
+
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mmAiShowThinking() {
+  const msgs = document.getElementById('mm-ai-messages');
+  const div = document.createElement('div');
+  div.className = 'mm-ai-msg thinking';
+  div.id = 'mm-ai-thinking';
+  div.textContent = '考え中…';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mmAiRemoveThinking() {
+  const el = document.getElementById('mm-ai-thinking');
+  if (el) el.remove();
 }
 
 async function mmAiSend() {
@@ -1348,11 +1427,9 @@ async function mmAiSend() {
   input.value = '';
   mmAiAppend('user', text);
   _mmAiHistory.push({ role: 'user', content: text });
-  const btn = document.getElementById('mm-ai-send-btn'); btn.disabled = true;
-  const thinking = document.createElement('div');
-  thinking.className = 'mm-ai-msg ai'; thinking.textContent = '…';
-  const msgs = document.getElementById('mm-ai-messages');
-  msgs.appendChild(thinking); msgs.scrollTop = msgs.scrollHeight;
+  const btn = document.getElementById('mm-ai-send-btn');
+  btn.disabled = true;
+  mmAiShowThinking();
   try {
     const r = await fetch(`/mail/api/emails/${_mmUid}/ai-chat/`, {
       method: 'POST',
@@ -1360,13 +1437,15 @@ async function mmAiSend() {
       body: JSON.stringify({ folder_id: _mmFolderId, messages: _mmAiHistory }),
     });
     const d = await r.json();
-    thinking.remove(); btn.disabled = false;
-    if (!d.ok) { mmAiAppend('assistant', '⚠️ ' + (d.error || '応答に失敗しました'), 'ai'); return; }
+    mmAiRemoveThinking();
+    btn.disabled = false;
+    if (!d.ok) { mmAiAppend('assistant', '⚠️ ' + (d.error || '応答に失敗しました'), true); return; }
     _mmAiHistory.push({ role: 'assistant', content: d.reply });
-    mmAiAppend('assistant', d.reply, d.type || 'reply');
+    mmAiAppend('assistant', d.reply, false, d.type || 'reply');
   } catch(e) {
-    thinking.remove(); btn.disabled = false;
-    mmAiAppend('assistant', '⚠️ 通信エラーが発生しました', 'ai');
+    mmAiRemoveThinking();
+    btn.disabled = false;
+    mmAiAppend('assistant', '⚠️ 通信エラーが発生しました', true);
   }
 }
 
