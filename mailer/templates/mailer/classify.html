@@ -549,6 +549,42 @@ tr.expanded .row-expand-inner{
   <!-- ===== コンテンツ ===== -->
   <div id="content">
 
+    <!-- スケジュールカード -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⏰ 自動仕分けスケジュール</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="sch-enabled" style="width:15px;height:15px;accent-color:var(--blue)">
+          <span id="sch-toggle-label" style="font-size:.82rem;font-weight:600;color:#757575">無効</span>
+        </label>
+      </div>
+      <div id="schedule-panel">
+        <div id="sch-settings" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <span style="font-size:.82rem;color:#616161">実行時刻:</span>
+            <select id="sch-hour" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
+            <span style="font-size:.9rem;font-weight:700">:</span>
+            <select id="sch-minute" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            <span style="font-size:.82rem;color:#616161">曜日:</span>
+            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem">
+              <input type="checkbox" id="sch-wd-all-chk" style="accent-color:var(--blue)"> 毎日
+            </label>
+            <span id="sch-wd-chips"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button id="btn-sch-save" style="background:var(--blue);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer">保存</button>
+            <span id="sch-status" style="font-size:.8rem;color:#757575"></span>
+          </div>
+        </div>
+        <div id="sch-info" style="display:none;margin-top:8px;font-size:.8rem;color:#757575;display:flex;gap:20px;flex-wrap:wrap">
+          <span>次回実行: <strong id="sch-next-run">-</strong></span>
+          <span>最終実行: <strong id="sch-last-run">-</strong></span>
+        </div>
+      </div>
+    </div>
+
     <!-- 分類カード -->
     <div class="card">
       <div class="card-header">
@@ -630,41 +666,6 @@ tr.expanded .row-expand-inner{
       </div>
     </div>
 
-    <!-- スケジュールカード -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">⏰ 自動仕分けスケジュール</span>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="sch-enabled" style="width:15px;height:15px;accent-color:var(--blue)">
-          <span id="sch-toggle-label" style="font-size:.82rem;font-weight:600;color:#757575">無効</span>
-        </label>
-      </div>
-      <div id="schedule-panel">
-        <div id="sch-settings" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-            <span style="font-size:.82rem;color:#616161">実行時刻:</span>
-            <select id="sch-hour" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
-            <span style="font-size:.9rem;font-weight:700">:</span>
-            <select id="sch-minute" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-            <span style="font-size:.82rem;color:#616161">曜日:</span>
-            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem">
-              <input type="checkbox" id="sch-wd-all-chk" style="accent-color:var(--blue)"> 毎日
-            </label>
-            <span id="sch-wd-chips"></span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <button id="btn-sch-save" style="background:var(--blue);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer">保存</button>
-            <span id="sch-status" style="font-size:.8rem;color:#757575"></span>
-          </div>
-        </div>
-        <div id="sch-info" style="display:none;margin-top:8px;font-size:.8rem;color:#757575;display:flex;gap:20px;flex-wrap:wrap">
-          <span>次回実行: <strong id="sch-next-run">-</strong></span>
-          <span>最終実行: <strong id="sch-last-run">-</strong></span>
-        </div>
-      </div>
-    </div>
 
   </div><!-- /content -->
 </div><!-- /main -->
