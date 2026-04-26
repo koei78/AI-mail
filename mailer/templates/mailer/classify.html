@@ -329,7 +329,162 @@ tr.expanded .row-expand-inner{
 
   /* ボトムナビ表示 */
   #bottom-nav{display:flex}
+  #mm-ai-panel{position:absolute;inset:0;z-index:10;width:100%}
 }
+
+/* ===== メールモーダル ===== */
+#mail-modal{
+  display:none;position:fixed;inset:0;z-index:1000;
+  align-items:center;justify-content:center;
+}
+#mail-modal.open{display:flex}
+#mm-backdrop{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,.45);
+}
+#mm-wrap{
+  position:relative;z-index:1;
+  width:92vw;max-width:1200px;height:88vh;
+  background:#fff;border-radius:8px;
+  box-shadow:var(--shadow);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+#mm-header{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+#mm-subject-text{
+  flex:1;font-weight:700;font-size:.95rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#mm-toolbar{display:flex;align-items:center;gap:6px}
+#mm-toolbar button{
+  display:flex;align-items:center;gap:4px;
+  border:1px solid var(--border);background:#fff;
+  padding:5px 10px;border-radius:var(--radius);
+  font-size:.8rem;cursor:pointer;transition:background .12s;white-space:nowrap;
+}
+#mm-toolbar button:hover{background:var(--hover)}
+#mm-btn-reply{color:var(--blue);border-color:var(--blue)}
+#mm-btn-ai{color:#8764b8;border-color:#8764b8}
+#mm-btn-close{color:var(--text-sub)}
+#mm-body{display:flex;flex:1;overflow:hidden}
+#mm-left{
+  flex:1;min-width:0;display:flex;flex-direction:column;
+  overflow-y:auto;
+}
+#mm-meta{
+  padding:8px 16px;font-size:.8rem;color:var(--text-sub);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+#mm-iframe-wrap{flex:1;min-height:200px}
+#mm-iframe{width:100%;height:100%;border:none;display:block}
+#mm-reply-wrap{
+  border-top:2px solid var(--blue);padding:12px 16px;
+  flex-shrink:0;
+}
+.mmr-header{font-size:.82rem;font-weight:700;color:var(--blue);margin-bottom:6px}
+#mm-reply-to{font-size:.8rem;color:var(--text-sub);margin-bottom:8px}
+#mm-reply-body{
+  width:100%;min-height:100px;max-height:240px;
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:8px;font-size:.85rem;resize:vertical;font-family:inherit;
+  box-sizing:border-box;
+}
+.mmr-footer{display:flex;align-items:center;gap:8px;margin-top:8px}
+.mmr-file-label{
+  display:inline-flex;align-items:center;gap:4px;
+  cursor:pointer;font-size:.8rem;color:var(--text-sub);
+  border:1px solid var(--border);background:#fff;
+  padding:4px 10px;border-radius:var(--radius);
+  transition:background .12s;white-space:nowrap;
+}
+.mmr-file-label:hover{background:var(--hover)}
+.mmr-file-label input{display:none}
+#mm-reply-file-names{
+  flex:1;font-size:.75rem;color:var(--text-sub);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#mm-reply-cancel{
+  border:1px solid var(--border);background:#fff;padding:5px 12px;
+  border-radius:var(--radius);cursor:pointer;font-size:.82rem;
+}
+#mm-reply-send{
+  background:var(--blue);color:#fff;border:none;
+  padding:5px 14px;border-radius:var(--radius);
+  cursor:pointer;font-size:.82rem;font-weight:600;
+}
+#mm-reply-send:disabled{opacity:.6;cursor:default}
+#mm-ai-panel{
+  width:320px;flex-shrink:0;display:flex;flex-direction:column;
+  border-left:1px solid var(--border);background:#faf9f8;
+}
+.mm-ai-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;border-bottom:1px solid var(--border);
+  font-size:.82rem;font-weight:700;color:#8764b8;flex-shrink:0;
+}
+.mm-ai-hdr button{
+  border:none;background:transparent;cursor:pointer;
+  color:var(--text-sub);font-size:1rem;padding:2px 4px;
+}
+#mm-ai-messages{
+  flex:1;overflow-y:auto;padding:10px 12px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.mm-ai-msg{
+  max-width:88%;padding:7px 10px;border-radius:10px;
+  font-size:.78rem;line-height:1.55;word-break:break-word;white-space:pre-wrap;
+}
+.mm-ai-msg.user{
+  align-self:flex-end;background:var(--blue);color:#fff;
+  border-bottom-right-radius:3px;
+}
+.mm-ai-msg.ai{
+  align-self:flex-start;background:#fff;color:var(--text);
+  border:1px solid var(--border);border-bottom-left-radius:3px;
+}
+.mm-ai-msg.reply{
+  align-self:flex-start;background:#e8f5e9;color:var(--text);
+  border:1px solid #a5d6a7;border-bottom-left-radius:3px;
+}
+.mm-ai-msg.thinking{
+  align-self:flex-start;color:var(--text-light);font-style:italic;
+  background:transparent;border:none;font-size:.74rem;
+}
+.mm-ai-msg.question{
+  align-self:flex-start;
+  background:#fff8e1;border:1px solid #f0c040;color:#7a5800;
+}
+.mm-ai-msg.question::before{
+  content:'❓ 確認事項';display:block;font-size:.7rem;font-weight:700;
+  color:#b88a00;margin-bottom:4px;letter-spacing:.03em;
+}
+.mm-ai-input-wrap{
+  border-top:1px solid var(--border);padding:8px 10px;flex-shrink:0;
+}
+#mm-ai-input{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 8px;font-size:.82rem;resize:none;font-family:inherit;
+  box-sizing:border-box;
+}
+.mm-ai-footer{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
+.mm-ai-footer button{
+  border:1px solid var(--border);background:#fff;padding:4px 10px;
+  border-radius:var(--radius);cursor:pointer;font-size:.78rem;
+}
+#mm-ai-send-btn{background:#8764b8;color:#fff;border-color:#8764b8;font-weight:600}
+#mm-ai-send-btn:disabled{opacity:.6;cursor:default}
+.ai-use-btn{
+  display:inline-block;margin-top:6px;
+  padding:3px 10px;background:var(--blue-bg);
+  border:1px solid var(--blue);border-radius:var(--radius);
+  color:var(--blue);font-size:.72rem;cursor:pointer;
+  transition:background .12s;
+}
+.ai-use-btn:hover{background:var(--blue-light)}
 </style>
 </head>
 <body>
@@ -393,6 +548,42 @@ tr.expanded .row-expand-inner{
 
   <!-- ===== コンテンツ ===== -->
   <div id="content">
+
+    <!-- スケジュールカード -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⏰ 自動仕分けスケジュール</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="sch-enabled" style="width:15px;height:15px;accent-color:var(--blue)">
+          <span id="sch-toggle-label" style="font-size:.82rem;font-weight:600;color:#757575">無効</span>
+        </label>
+      </div>
+      <div id="schedule-panel">
+        <div id="sch-settings" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <span style="font-size:.82rem;color:#616161">実行時刻:</span>
+            <select id="sch-hour" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
+            <span style="font-size:.9rem;font-weight:700">:</span>
+            <select id="sch-minute" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            <span style="font-size:.82rem;color:#616161">曜日:</span>
+            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem">
+              <input type="checkbox" id="sch-wd-all-chk" style="accent-color:var(--blue)"> 毎日
+            </label>
+            <span id="sch-wd-chips"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button id="btn-sch-save" style="background:var(--blue);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer">保存</button>
+            <span id="sch-status" style="font-size:.8rem;color:#757575"></span>
+          </div>
+        </div>
+        <div id="sch-info" style="display:none;margin-top:8px;font-size:.8rem;color:#757575;display:flex;gap:20px;flex-wrap:wrap">
+          <span>次回実行: <strong id="sch-next-run">-</strong></span>
+          <span>最終実行: <strong id="sch-last-run">-</strong></span>
+        </div>
+      </div>
+    </div>
 
     <!-- 分類カード -->
     <div class="card">
@@ -475,41 +666,6 @@ tr.expanded .row-expand-inner{
       </div>
     </div>
 
-    <!-- スケジュールカード -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">⏰ 自動仕分けスケジュール</span>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="sch-enabled" style="width:15px;height:15px;accent-color:var(--blue)">
-          <span id="sch-toggle-label" style="font-size:.82rem;font-weight:600;color:#757575">無効</span>
-        </label>
-      </div>
-      <div id="schedule-panel">
-        <div id="sch-settings" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-            <span style="font-size:.82rem;color:#616161">実行時刻:</span>
-            <select id="sch-hour" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
-            <span style="font-size:.9rem;font-weight:700">:</span>
-            <select id="sch-minute" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:#fff"></select>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-            <span style="font-size:.82rem;color:#616161">曜日:</span>
-            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem">
-              <input type="checkbox" id="sch-wd-all-chk" style="accent-color:var(--blue)"> 毎日
-            </label>
-            <span id="sch-wd-chips"></span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <button id="btn-sch-save" style="background:var(--blue);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer">保存</button>
-            <span id="sch-status" style="font-size:.8rem;color:#757575"></span>
-          </div>
-        </div>
-        <div id="sch-info" style="display:none;margin-top:8px;font-size:.8rem;color:#757575;display:flex;gap:20px;flex-wrap:wrap">
-          <span>次回実行: <strong id="sch-next-run">-</strong></span>
-          <span>最終実行: <strong id="sch-last-run">-</strong></span>
-        </div>
-      </div>
-    </div>
 
   </div><!-- /content -->
 </div><!-- /main -->
@@ -545,6 +701,70 @@ tr.expanded .row-expand-inner{
 </div><!-- /app -->
 
 <div id="toast"></div>
+
+<!-- ===== メールモーダル ===== -->
+<div id="mail-modal">
+  <div id="mm-backdrop" onclick="closeMailModal()"></div>
+  <div id="mm-wrap">
+    <div id="mm-header">
+      <div id="mm-subject-text"></div>
+      <div id="mm-toolbar">
+        <button id="mm-btn-reply">
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>返信
+        </button>
+        <button id="mm-btn-ai">
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>AI返信提案
+        </button>
+        <button id="mm-btn-close" onclick="closeMailModal()">✕</button>
+      </div>
+    </div>
+    <div id="mm-body">
+      <div id="mm-left">
+        <div id="mm-meta"></div>
+        <div id="mm-iframe-wrap">
+          <iframe id="mm-iframe" sandbox="allow-same-origin allow-popups"></iframe>
+        </div>
+        <div id="mm-reply-wrap">
+          <div class="mmr-header">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+            返信
+          </div>
+          <div id="mm-reply-to"></div>
+          <textarea id="mm-reply-body" placeholder="返信を入力..."></textarea>
+          <div class="mmr-footer">
+            <label class="mmr-file-label">
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              添付ファイルを追加
+              <input type="file" id="mm-reply-files" multiple>
+            </label>
+            <span id="mm-reply-file-names"></span>
+            <button id="mm-reply-cancel">キャンセル</button>
+            <button id="mm-reply-send">送信</button>
+          </div>
+        </div>
+      </div>
+      <div id="mm-ai-panel">
+        <div class="mm-ai-hdr">
+          <span>
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            AIアシスタント
+          </span>
+          <button id="mm-ai-close">✕</button>
+        </div>
+        <div id="mm-ai-messages">
+          <div class="mm-ai-msg ai">このメールについて何でも質問してください。<br>「返信文を書いて」と入力すると、一緒に返信を作ります。</div>
+        </div>
+        <div class="mm-ai-input-wrap">
+          <textarea id="mm-ai-input" placeholder="返信文を書いて / 要約して / …（Enter で送信）" rows="2"></textarea>
+          <div class="mm-ai-footer">
+            <button id="mm-ai-clear-btn">リセット</button>
+            <button id="mm-ai-send-btn">送信</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
@@ -755,9 +975,14 @@ function renderRows(items) {
       <td class="td-summary" title="${esc(c.summary)}">${esc(c.summary)||''}</td>
       <td><span class="badge badge-${esc(c.category)}">優先度:${esc(c.category)}</span></td>
       <td class="td-action" onclick="event.stopPropagation()">
-        <a class="reply-btn" href="/mail/?auto_open_uid=${c.uid}&auto_open_folder=${c.folder_id}&auto_action=reply">
+        <button class="reply-btn"
+          data-uid="${c.uid}"
+          data-folder="${c.folder_id}"
+          data-subject="${esc(c.subject)}"
+          data-sender="${esc(c.sender)}"
+          onclick="event.stopPropagation();openMailModal(this.dataset.uid,this.dataset.folder,this.dataset.subject,this.dataset.sender)">
           <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>返信
-        </a>
+        </button>
       </td>`;
 
     // 展開行
@@ -1031,6 +1256,199 @@ document.getElementById('bn-home').addEventListener('click', () => {
 document.getElementById('bn-sync').addEventListener('click', () => {
   document.getElementById('btn-classify').click();
 });
+
+// =============================================
+// メールモーダル
+// =============================================
+let _mmUid = null, _mmFolderId = null;
+let _mmAiHistory = [];
+
+async function openMailModal(uid, folderId, subject, sender) {
+  _mmUid = uid; _mmFolderId = folderId;
+  _mmAiHistory = [];
+
+  document.getElementById('mm-subject-text').textContent = subject || '(件名なし)';
+  document.getElementById('mm-reply-to').textContent = '返信先: ' + (sender || '');
+  document.getElementById('mm-reply-body').value = '';
+  document.getElementById('mm-reply-files').value = '';
+  document.getElementById('mm-reply-file-names').textContent = '';
+  document.getElementById('mm-ai-panel').style.display = 'flex';
+  document.getElementById('mm-meta').textContent = '読み込み中...';
+  document.getElementById('mm-iframe').src = 'about:blank';
+  document.getElementById('mail-modal').classList.add('open');
+  mmAiClear();
+  // モーダルを開いたら自動的にAI返信提案を開始
+  document.getElementById('mm-ai-input').value = 'このメールへの返信文を提案してください。';
+  mmAiSend();
+
+  try {
+    const r = await fetch(`/mail/api/emails/${uid}/?folder_id=${folderId}`);
+    const d = await r.json();
+    if (!d.ok) { document.getElementById('mm-meta').textContent = '読み込みに失敗しました'; return; }
+    const em = d.email;
+    const recvAt = em.received_at ? new Date(em.received_at).toLocaleString('ja-JP') : '';
+    document.getElementById('mm-meta').textContent =
+      `差出人: ${em.from_address || sender || ''}　|　${recvAt}`;
+    document.getElementById('mm-reply-to').textContent = '返信先: ' + (em.from_address || sender || '');
+    const iframe = document.getElementById('mm-iframe');
+    const html = em.body_html ||
+      `<pre style="font-family:sans-serif;white-space:pre-wrap;padding:16px">${(em.body_text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre>`;
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+  } catch (e) {
+    document.getElementById('mm-meta').textContent = '通信エラーが発生しました';
+  }
+}
+
+function closeMailModal() {
+  document.getElementById('mail-modal').classList.remove('open');
+  _mmUid = null; _mmFolderId = null;
+}
+
+document.getElementById('mm-btn-reply').addEventListener('click', () => {
+  document.getElementById('mm-reply-body').focus();
+  document.getElementById('mm-reply-body').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+document.getElementById('mm-reply-cancel').addEventListener('click', () => {
+  document.getElementById('mm-reply-body').value = '';
+  document.getElementById('mm-reply-files').value = '';
+  document.getElementById('mm-reply-file-names').textContent = '';
+});
+
+document.getElementById('mm-reply-files').addEventListener('change', function() {
+  const names = Array.from(this.files).map(f => f.name).join(', ');
+  document.getElementById('mm-reply-file-names').textContent = names;
+});
+
+document.getElementById('mm-reply-send').addEventListener('click', async () => {
+  const body = document.getElementById('mm-reply-body').value.trim();
+  if (!body) { toast('本文を入力してください', 'error'); return; }
+  const btn = document.getElementById('mm-reply-send'); btn.disabled = true;
+  const fd = new FormData();
+  fd.append('body', body);
+  fd.append('folder_id', _mmFolderId);
+  Array.from(document.getElementById('mm-reply-files').files).forEach(f => fd.append('attachments', f));
+  try {
+    const r = await fetch(`/mail/api/reply/${_mmUid}/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd,
+    });
+    const d = await r.json();
+    btn.disabled = false;
+    if (d.ok) { toast('返信しました', 'success'); closeMailModal(); }
+    else { toast('送信失敗: ' + (d.error || '不明'), 'error'); }
+  } catch(e) {
+    btn.disabled = false;
+    toast('通信エラー', 'error');
+  }
+});
+
+document.getElementById('mm-btn-ai').addEventListener('click', () => {
+  document.getElementById('mm-ai-panel').style.display = 'flex';
+  document.getElementById('mm-ai-input').focus();
+});
+
+document.getElementById('mm-ai-close').addEventListener('click', () => {
+  document.getElementById('mm-ai-panel').style.display = 'none';
+});
+
+document.getElementById('mm-ai-send-btn').addEventListener('click', mmAiSend);
+document.getElementById('mm-ai-clear-btn').addEventListener('click', mmAiClear);
+document.getElementById('mm-ai-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mmAiSend(); }
+});
+
+function mmAiClear() {
+  _mmAiHistory = [];
+  document.getElementById('mm-ai-messages').innerHTML =
+    '<div class="mm-ai-msg ai">このメールについて何でも質問してください。<br>「返信文を書いて」と入力すると、一緒に返信を作ります。</div>';
+}
+
+function extractBetweenDashes(text) {
+  const parts = text.split(/^[- ]{3,}\s*$/m);
+  if (parts.length >= 3) return parts[1].trim();
+  if (parts.length === 2) return parts[1].trim() || parts[0].trim();
+  return text.trim();
+}
+
+function mmAiAppend(role, text, isError = false, msgType = 'reply') {
+  const msgs = document.getElementById('mm-ai-messages');
+  const div = document.createElement('div');
+  if (role === 'user') {
+    div.className = 'mm-ai-msg user';
+  } else if (isError) {
+    div.className = 'mm-ai-msg ai';
+  } else if (msgType === 'question') {
+    div.className = 'mm-ai-msg question';
+  } else if (msgType === 'reply') {
+    div.className = 'mm-ai-msg reply';
+  } else {
+    div.className = 'mm-ai-msg ai';
+  }
+  div.textContent = text;
+
+  if (role === 'assistant' && !isError && msgType === 'reply') {
+    const useBtn = document.createElement('div');
+    useBtn.className = 'ai-use-btn';
+    useBtn.textContent = 'この返信を使う';
+    useBtn.addEventListener('click', () => {
+      document.getElementById('mm-reply-body').value = extractBetweenDashes(text);
+      document.getElementById('mm-reply-body').focus();
+      document.getElementById('mm-reply-body').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      toast('返信エリアに挿入しました', 'info');
+    });
+    div.appendChild(document.createElement('br'));
+    div.appendChild(useBtn);
+  }
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mmAiShowThinking() {
+  const msgs = document.getElementById('mm-ai-messages');
+  const div = document.createElement('div');
+  div.className = 'mm-ai-msg thinking';
+  div.id = 'mm-ai-thinking';
+  div.textContent = '考え中…';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mmAiRemoveThinking() {
+  const el = document.getElementById('mm-ai-thinking');
+  if (el) el.remove();
+}
+
+async function mmAiSend() {
+  if (!_mmUid || !_mmFolderId) return;
+  const input = document.getElementById('mm-ai-input');
+  const text = input.value.trim(); if (!text) return;
+  input.value = '';
+  mmAiAppend('user', text);
+  _mmAiHistory.push({ role: 'user', content: text });
+  const btn = document.getElementById('mm-ai-send-btn');
+  btn.disabled = true;
+  mmAiShowThinking();
+  try {
+    const r = await fetch(`/mail/api/emails/${_mmUid}/ai-chat/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ folder_id: _mmFolderId, messages: _mmAiHistory }),
+    });
+    const d = await r.json();
+    mmAiRemoveThinking();
+    btn.disabled = false;
+    if (!d.ok) { mmAiAppend('assistant', '⚠️ ' + (d.error || '応答に失敗しました'), true); return; }
+    _mmAiHistory.push({ role: 'assistant', content: d.reply });
+    mmAiAppend('assistant', d.reply, false, d.type || 'reply');
+  } catch(e) {
+    mmAiRemoveThinking();
+    btn.disabled = false;
+    mmAiAppend('assistant', '⚠️ 通信エラーが発生しました', true);
+  }
+}
 
 document.getElementById('btn-sch-save').addEventListener('click', async () => {
   const isEnabled = document.getElementById('sch-enabled').checked;

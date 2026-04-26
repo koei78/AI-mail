@@ -36,6 +36,39 @@ CONNECTION_TEST_FIELDS = [
     'imap_host', 'imap_port', 'smtp_host', 'smtp_port', 'username', 'password',
 ]
 
+_FOLDER_TYPE_ORDER = {'inbox': 0, 'sent': 1, 'draft': 2, 'trash': 3, 'spam': 4, 'custom': 5}
+
+_HIDE_REMOTE_NAMES = {
+    '[gmail]', '[gmail]/all mail', '[gmail]/すべてのメール',
+    '[gmail]/important', '[gmail]/重要',
+    '[gmail]/starred', '[gmail]/スター付き',
+    '[gmail]/chats', '[gmail]/チャット',
+}
+
+
+def _filter_and_sort_folders(folders):
+    visible = [f for f in folders if f.remote_name.lower() not in _HIDE_REMOTE_NAMES]
+
+    # 同じ folder_type（inbox/sent/draft/trash/spam）が複数ある場合は1つに絞る。
+    # 未読数が多い方（=実際のIMAPフォルダ）を優先し、同数なら先に同期された方を残す。
+    standard_best: dict = {}
+    custom_list: list = []
+    for f in visible:
+        if f.folder_type == 'custom':
+            custom_list.append(f)
+            continue
+        existing = standard_best.get(f.folder_type)
+        if existing is None:
+            standard_best[f.folder_type] = f
+        elif f.unread_count > existing.unread_count or (
+            f.unread_count == existing.unread_count and f.id < existing.id
+        ):
+            standard_best[f.folder_type] = f
+
+    standard = sorted(standard_best.values(), key=lambda f: _FOLDER_TYPE_ORDER.get(f.folder_type, 99))
+    custom_list.sort(key=lambda f: f.name)
+    return standard + custom_list
+
 
 # =============================
 # ページView（テンプレートを返す）
@@ -58,7 +91,7 @@ class MailIndexView(LoginRequiredMixin, TemplateView):
 
         initial_account = accounts[0] if accounts else None
         if initial_account:
-            folders = list(MailFolder.objects.filter(account=initial_account))
+            folders = _filter_and_sort_folders(MailFolder.objects.filter(account=initial_account))
             ctx['folders_json'] = json.dumps([_serialize_folder(f) for f in folders])
             inbox = next((f for f in folders if f.folder_type == 'inbox'), folders[0] if folders else None)
             ctx['initial_folder_id'] = inbox.id if inbox else 0
@@ -378,7 +411,7 @@ def api_folders(request):
     if isinstance(account, JsonResponse):
         return account
 
-    folders = MailFolder.objects.filter(account=account)
+    folders = _filter_and_sort_folders(MailFolder.objects.filter(account=account))
     return _json_ok({'folders': [_serialize_folder(f) for f in folders]})
 
 

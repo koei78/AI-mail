@@ -23,6 +23,13 @@ def _get_client_for_account(account):
 
 logger = logging.getLogger(__name__)
 
+_SYNC_HIDE_FOLDERS = {
+    '[gmail]', '[gmail]/all mail', '[gmail]/すべてのメール',
+    '[gmail]/important', '[gmail]/重要',
+    '[gmail]/starred', '[gmail]/スター付き',
+    '[gmail]/chats', '[gmail]/チャット',
+}
+
 
 def sync_account(account_id: int) -> dict:
     """
@@ -58,6 +65,13 @@ def sync_account(account_id: int) -> dict:
                     result['updated'] += 1
             except Exception as e:
                 logger.warning('未読数取得失敗 folder=%s: %s', folder_data['remote_name'], e)
+
+        stale_ids = [
+            f.pk for f in MailFolder.objects.filter(account=account)
+            if f.remote_name.lower() in _SYNC_HIDE_FOLDERS
+        ]
+        if stale_ids:
+            MailFolder.objects.filter(pk__in=stale_ids).delete()
 
         account.last_synced_at = django_timezone.now()
         account.save(update_fields=['last_synced_at'])
